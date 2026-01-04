@@ -1,0 +1,246 @@
+mod error;
+
+pub use error::*;
+
+use crate::allocation_table::AllocationTable;
+use crate::bios_parameter_block::BiosParameterBlock;
+use crate::device::{AsyncDevice, Device, SyncDevice};
+use crate::directory::{Directory, DirectoryFile, DirectoryTable};
+use crate::directory_item::DirectoryItem;
+use crate::{AllocationTableKind, BiosParameterBlockError, CodePageEncoder, File};
+use core::cell::RefCell;
+use core::cmp::min;
+use embedded_io::{Error, ErrorType, Read, ReadExactError, Seek, SeekFrom, Write};
+use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
+
+pub struct FileSystem<D, CPE>
+where
+    CPE: CodePageEncoder,
+{
+    device: D,
+    code_page_encoder: CPE,
+
+    allocation_table: AllocationTable,
+    bios_parameter_block: BiosParameterBlock,
+}
+
+impl<D, CPE> FileSystem<D, CPE>
+where
+    D: Device,
+    CPE: CodePageEncoder,
+{
+    /// The type of FAT filesystem the loaded instance is
+    pub fn allocation_table_kind(&self) -> AllocationTableKind {
+        self.allocation_table.kind()
+    }
+
+    fn root_directory(&self) -> Directory<'_, D> {
+        let directory_table_entry_count = self.bios_parameter_block.directory_table_entry_count();
+
+        if directory_table_entry_count > 0 {
+            DirectoryTable::new(
+                &self.device,
+                self.bios_parameter_block.directory_table_base_address(),
+                directory_table_entry_count,
+            )
+            .into()
+        } else {
+            DirectoryFile::new(
+                &self.device,
+                &self.allocation_table,
+                self.bios_parameter_block.data_region_base_address(),
+                self.bios_parameter_block.bytes_per_cluster(),
+                self.bios_parameter_block
+                    .root_directory_file_cluster_number(),
+            )
+            .into()
+        }
+    }
+
+    fn directory_for(&'_ self, item: &DirectoryItem) -> Option<DirectoryFile<'_, D>> {
+        if item.is_directory() {
+            Some(DirectoryFile::new(
+                &self.device,
+                &self.allocation_table,
+                self.bios_parameter_block.data_region_base_address(),
+                self.bios_parameter_block.bytes_per_cluster(),
+                item.first_cluster_number(),
+            ))
+        } else {
+            None
+        }
+    }
+
+    fn file_for(&'_ self, item: &DirectoryItem) -> Option<File<'_, D>> {
+        if item.is_file() {
+            Some(File::new(
+                &self.device,
+                &self.allocation_table,
+                self.bios_parameter_block.data_region_base_address(),
+                self.bios_parameter_block.bytes_per_cluster(),
+                item.first_cluster_number(),
+                item.file_size(),
+            ))
+        } else {
+            None
+        }
+    }
+
+    fn validate_boot_sector_signature<DE, SE>(
+        boot_sector_bytes: &[u8; 512],
+    ) -> Result<(), FileSystemError<DE, SE>>
+    where
+        DE: Error,
+        SE: Error,
+    {
+        ensure!(
+            boot_sector_bytes[510] == 0x55 && boot_sector_bytes[511] == 0xAA,
+            FileSystemError::InvalidFatSignature
+        );
+
+        Ok(())
+    }
+}
+
+impl<D, S, CPE> FileSystem<D, CPE>
+where
+    D: SyncDevice<Stream = S>,
+    S: Read + Seek,
+    CPE: CodePageEncoder,
+{
+    pub fn new(
+        mut device: D,
+        code_page_encoder: CPE,
+    ) -> Result<Self, FileSystemError<D::Error, S::Error>> {
+        let mut boot_sector_bytes = [0; 512];
+
+        device
+            .with_stream(
+                |stream| -> Result<(), FileSystemError<D::Error, S::Error>> {
+                    stream.seek(SeekFrom::Start(0))?;
+
+                    stream.read_exact(&mut boot_sector_bytes)?;
+
+                    Ok(())
+                },
+            )
+            .map_err(FileSystemError::DeviceError)?;
+
+        Self::validate_boot_sector_signature(&boot_sector_bytes)?;
+
+        let bios_parameter_block = BiosParameterBlock::new(&boot_sector_bytes)?;
+        let allocation_table = AllocationTable::new(
+            bios_parameter_block.allocation_table_kind(),
+            bios_parameter_block.allocation_table_base_address(),
+        );
+
+        Ok(Self {
+            device,
+            code_page_encoder,
+
+            allocation_table,
+            bios_parameter_block,
+        })
+    }
+
+    pub fn open(&self, file_path: &str) -> Option<File<'_, D>> {
+        self.file_for(&self.find_item(file_path)?)
+    }
+
+    fn find_item(&self, file_path: &str) -> Option<DirectoryItem> {
+        let mut current_directory = self.root_directory();
+        let mut file_path_part_iterator = file_path.split("/");
+        let mut file_path_part = file_path_part_iterator.next()?;
+
+        loop {
+            let mut item_iterator = current_directory.items();
+
+            loop {
+                // TODO: Update unwrap to a OOB mechanism to report bad items
+                let item = item_iterator.next()?.unwrap();
+
+                if item.is_match(&self.code_page_encoder, file_path_part) {
+                    file_path_part = match file_path_part_iterator.next() {
+                        Some(next_file_path_part) => next_file_path_part,
+                        None => return Some(item),
+                    };
+
+                    current_directory = self.directory_for(&item)?.into();
+                    break;
+                }
+            }
+        }
+    }
+}
+
+impl<D, S, CPE> FileSystem<D, CPE>
+where
+    D: AsyncDevice<Stream = S>,
+    S: AsyncRead + AsyncSeek,
+    CPE: CodePageEncoder,
+{
+    pub async fn new_async(
+        mut device: D,
+        code_page_encoder: CPE,
+    ) -> Result<Self, FileSystemError<D::Error, S::Error>> {
+        let mut boot_sector_bytes = [0; 512];
+
+        device
+            .with_stream(
+                async |stream| -> Result<(), FileSystemError<D::Error, S::Error>> {
+                    stream.seek(SeekFrom::Start(0)).await?;
+
+                    stream.read_exact(&mut boot_sector_bytes).await?;
+
+                    Ok(())
+                },
+            )
+            .await
+            .map_err(FileSystemError::DeviceError)?;
+
+        Self::validate_boot_sector_signature(&boot_sector_bytes)?;
+
+        let bios_parameter_block = BiosParameterBlock::new(&boot_sector_bytes)?;
+        let allocation_table = AllocationTable::new(
+            bios_parameter_block.allocation_table_kind(),
+            bios_parameter_block.allocation_table_base_address(),
+        );
+
+        Ok(Self {
+            device,
+            code_page_encoder,
+
+            allocation_table,
+            bios_parameter_block,
+        })
+    }
+
+    pub async fn open_async(&self, file_path: &str) -> Option<File<'_, D>> {
+        self.file_for(&self.find_item_async(file_path).await?)
+    }
+
+    async fn find_item_async(&self, file_path: &str) -> Option<DirectoryItem> {
+        let mut current_directory = self.root_directory();
+        let mut file_path_part_iterator = file_path.split("/");
+        let mut file_path_part = file_path_part_iterator.next()?;
+
+        loop {
+            let mut item_iterator = current_directory.items();
+
+            loop {
+                // TODO: Update unwrap to a OOB mechanism to report bad items
+                let item = item_iterator.next_async().await?.unwrap();
+
+                if item.is_match(&self.code_page_encoder, file_path) {
+                    file_path_part = match file_path_part_iterator.next() {
+                        Some(next_file_path_part) => next_file_path_part,
+                        None => return Some(item),
+                    };
+
+                    current_directory = self.directory_for(&item)?.into();
+                    break;
+                }
+            }
+        }
+    }
+}
