@@ -66,7 +66,6 @@ mod tests {
 
     mod display {
         use super::*;
-        use alloc::string::ToString;
 
         #[test]
         fn display_produces_non_empty_value() {

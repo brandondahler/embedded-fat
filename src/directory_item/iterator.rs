@@ -4,8 +4,8 @@ use crate::directory_entry::{
     DirectoryEntry, DirectoryEntryIterator, FreeDirectoryEntry, LONG_NAME_CHARACTERS_PER_ENTRY,
 };
 use crate::directory_item::{
-    DIRECTORY_ENTITY_LONG_NAME_MAX_LENGTH, DirectoryItem, DirectoryItemBuilder, DirectoryItemError,
-    DirectoryItemIterationError,
+    DIRECTORY_ENTITY_LONG_NAME_MAX_LENGTH, DeviceDirectoryItemIterationError, DirectoryItem,
+    DirectoryItemBuilder, DirectoryItemError, DirectoryItemIterationError,
 };
 use crate::{AsyncDevice, Device};
 use embedded_io::{Error, ErrorType, Read, Seek};
@@ -13,9 +13,6 @@ use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
 const MAX_ENTRY_COUNT: usize =
     DIRECTORY_ENTITY_LONG_NAME_MAX_LENGTH.div_ceil(LONG_NAME_CHARACTERS_PER_ENTRY) + 1;
-
-type IterationError<D, S> =
-    DirectoryItemIterationError<<D as Device>::Error, <S as ErrorType>::Error>;
 
 pub struct DirectoryItemIterator<'a, D>
 where
@@ -42,7 +39,7 @@ where
     D: SyncDevice<Stream = S>,
     S: Read + Seek,
 {
-    pub fn next(&mut self) -> Option<Result<DirectoryItem, IterationError<D, S>>> {
+    pub fn next(&mut self) -> Option<Result<DirectoryItem, DeviceDirectoryItemIterationError<D>>> {
         let mut is_first_entry = true;
         let mut builder = DirectoryItemBuilder::new();
 
@@ -104,7 +101,9 @@ where
     D: AsyncDevice<Stream = S>,
     S: AsyncRead + AsyncSeek,
 {
-    pub async fn next_async(&mut self) -> Option<Result<DirectoryItem, IterationError<D, S>>> {
+    pub async fn next_async(
+        &mut self,
+    ) -> Option<Result<DirectoryItem, DeviceDirectoryItemIterationError<D>>> {
         let mut is_first_entry = true;
         let mut builder = DirectoryItemBuilder::new();
 

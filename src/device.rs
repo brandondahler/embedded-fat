@@ -1,12 +1,6 @@
 mod single_access;
 
-#[cfg(test)]
-mod mock;
-
 pub use single_access::*;
-
-#[cfg(test)]
-pub use mock::*;
 
 use core::fmt::Debug;
 use core::ops::DerefMut;

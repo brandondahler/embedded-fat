@@ -6,29 +6,43 @@ use crate::allocation_table::AllocationTable;
 use crate::bios_parameter_block::BiosParameterBlock;
 use crate::device::{AsyncDevice, Device, SyncDevice};
 use crate::directory::{Directory, DirectoryFile, DirectoryTable};
-use crate::directory_item::DirectoryItem;
-use crate::{AllocationTableKind, BiosParameterBlockError, CodePageEncoder, File};
+use crate::directory_item::{DeviceDirectoryItemIterationError, DirectoryItem};
+use crate::{
+    AllocationTableKind, BiosParameterBlockError, CodePageEncoder, DirectoryItemIterationError,
+    File,
+};
 use core::cell::RefCell;
 use core::cmp::min;
 use embedded_io::{Error, ErrorType, Read, ReadExactError, Seek, SeekFrom, Write};
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
-pub struct FileSystem<D, CPE>
+pub struct FileSystem<D, CPE, IDE>
 where
+    D: Device,
     CPE: CodePageEncoder,
+    IDE: Fn(DeviceDirectoryItemIterationError<D>),
 {
     device: D,
     code_page_encoder: CPE,
 
     allocation_table: AllocationTable,
     bios_parameter_block: BiosParameterBlock,
+
+    on_invalid_directory_entry: Option<IDE>,
 }
 
-impl<D, CPE> FileSystem<D, CPE>
+impl<D, CPE, IDE> FileSystem<D, CPE, IDE>
 where
     D: Device,
     CPE: CodePageEncoder,
+    IDE: Fn(DeviceDirectoryItemIterationError<D>),
 {
+    pub fn with_invalid_directory_entry_callback(mut self, callback: IDE) -> Self {
+        self.on_invalid_directory_entry = Some(callback);
+
+        self
+    }
+
     /// The type of FAT filesystem the loaded instance is
     pub fn allocation_table_kind(&self) -> AllocationTableKind {
         self.allocation_table.kind()
@@ -102,7 +116,7 @@ where
     }
 }
 
-impl<D, S, CPE> FileSystem<D, CPE>
+impl<D, S, CPE> FileSystem<D, CPE, fn(DeviceDirectoryItemIterationError<D>)>
 where
     D: SyncDevice<Stream = S>,
     S: Read + Seek,
@@ -140,9 +154,19 @@ where
 
             allocation_table,
             bios_parameter_block,
+
+            on_invalid_directory_entry: None,
         })
     }
+}
 
+impl<D, S, CPE, IDE> FileSystem<D, CPE, IDE>
+where
+    D: SyncDevice<Stream = S>,
+    S: Read + Seek,
+    CPE: CodePageEncoder,
+    IDE: Fn(DeviceDirectoryItemIterationError<D>),
+{
     pub fn open(&self, file_path: &str) -> Option<File<'_, D>> {
         self.file_for(&self.find_item(file_path)?)
     }
@@ -156,8 +180,16 @@ where
             let mut item_iterator = current_directory.items();
 
             loop {
-                // TODO: Update unwrap to a OOB mechanism to report bad items
-                let item = item_iterator.next()?.unwrap();
+                let item = match item_iterator.next()? {
+                    Ok(item) => item,
+                    Err(error) => {
+                        if let Some(callback) = self.on_invalid_directory_entry.as_ref() {
+                            callback(error);
+                        }
+
+                        continue;
+                    }
+                };
 
                 if item.is_match(&self.code_page_encoder, file_path_part) {
                     file_path_part = match file_path_part_iterator.next() {
@@ -172,8 +204,7 @@ where
         }
     }
 }
-
-impl<D, S, CPE> FileSystem<D, CPE>
+impl<D, S, CPE> FileSystem<D, CPE, fn(DeviceDirectoryItemIterationError<D>)>
 where
     D: AsyncDevice<Stream = S>,
     S: AsyncRead + AsyncSeek,
@@ -212,9 +243,19 @@ where
 
             allocation_table,
             bios_parameter_block,
+
+            on_invalid_directory_entry: None,
         })
     }
+}
 
+impl<D, S, CPE, IDE> FileSystem<D, CPE, IDE>
+where
+    D: AsyncDevice<Stream = S>,
+    S: AsyncRead + AsyncSeek,
+    CPE: CodePageEncoder,
+    IDE: Fn(DeviceDirectoryItemIterationError<D>),
+{
     pub async fn open_async(&self, file_path: &str) -> Option<File<'_, D>> {
         self.file_for(&self.find_item_async(file_path).await?)
     }
@@ -228,8 +269,16 @@ where
             let mut item_iterator = current_directory.items();
 
             loop {
-                // TODO: Update unwrap to a OOB mechanism to report bad items
-                let item = item_iterator.next_async().await?.unwrap();
+                let item = match item_iterator.next_async().await? {
+                    Ok(item) => item,
+                    Err(error) => {
+                        if let Some(callback) = self.on_invalid_directory_entry.as_ref() {
+                            callback(error);
+                        }
+
+                        continue;
+                    }
+                };
 
                 if item.is_match(&self.code_page_encoder, file_path) {
                     file_path_part = match file_path_part_iterator.next() {

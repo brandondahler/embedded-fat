@@ -1,10 +1,14 @@
+use crate::Device;
 use crate::directory_entry::{
     DirectoryEntryError, DirectoryEntryIterationError, LongNameDirectoryEntryError,
     ShortNameDirectoryEntryError,
 };
 use crate::directory_item::DirectoryItemError;
 use core::fmt::{Display, Formatter};
-use embedded_io::{Error, ReadExactError};
+use embedded_io::{Error, ErrorType, ReadExactError};
+
+pub type DeviceDirectoryItemIterationError<D> =
+    DirectoryItemIterationError<<D as Device>::Error, <<D as Device>::Stream as ErrorType>::Error>;
 
 #[derive(Clone, Copy, Debug)]
 pub enum DirectoryItemIterationError<DE, SE> {
