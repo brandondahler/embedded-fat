@@ -1,27 +1,38 @@
 
 tasks {
-    val cargoBuild by registering(Exec::class) {
-        commandLine("cargo", "build")
-    }
-
-    val cargoBuildRelease by registering(Exec::class) {
-        commandLine("cargo", "build", "--release")
-    }
-
-    val cargoClippy by registering(Exec::class) {
-        commandLine("cargo", "clippy")
-    }
 
     val cargoFormat by registering(Exec::class) {
         commandLine("cargo", "fmt")
     }
 
-    val cargoFormatCheck by registering(Exec::class) {
-        commandLine("cargo", "fmt", "--check")
+    val cargoClippy by registering(Exec::class) {
+        shouldRunAfter(cargoFormat)
+
+        commandLine("cargo", "clippy")
     }
 
     val cargoTest by registering(Exec::class) {
+        shouldRunAfter(cargoClippy, cargoFormat)
+
         commandLine("cargo", "llvm-cov", "test", "--html", "--features", "std")
+    }
+
+    val cargoBuild by registering(Exec::class) {
+        shouldRunAfter(cargoClippy, cargoFormat, cargoTest)
+
+        commandLine("cargo", "build")
+    }
+
+    val cargoBuildRelease by registering(Exec::class) {
+        shouldRunAfter(cargoClippy, cargoFormat, cargoBuild, cargoTest)
+
+        commandLine("cargo", "build", "--release")
+    }
+
+    val cargoFormatCheck by registering(Exec::class) {
+        shouldRunAfter(cargoFormat)
+
+        commandLine("cargo", "fmt", "--check")
     }
 
     val compile by registering {
@@ -37,7 +48,7 @@ tasks {
     }
 
     register("fmt") {
-        dependsOn("cargoFormat")
+        dependsOn(cargoFormat)
     }
 
     register("build") {

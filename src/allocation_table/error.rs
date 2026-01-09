@@ -68,7 +68,7 @@ mod tests {
         use super::*;
 
         #[test]
-        fn display_produces_non_empty_value() {
+        fn produces_non_empty_value() {
             let values = [
                 AllocationTableError::StreamEndReached,
                 AllocationTableError::StreamError(MockError(ErrorKind::Other)),

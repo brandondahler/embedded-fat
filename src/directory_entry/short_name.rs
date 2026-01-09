@@ -78,7 +78,7 @@ impl ShortNameDirectoryEntry {
     }
 
     pub fn write(&self, mut bytes: &mut [u8; DIRECTORY_ENTRY_SIZE]) {
-        self.name.write(bytes);
+        bytes[0..11].copy_from_slice(self.name.bytes());
         bytes[11] = self.attributes.bits();
         write_le_u16(bytes, 20, (self.first_cluster_number >> 16) as u16);
         write_le_u16(bytes, 26, self.first_cluster_number as u16);

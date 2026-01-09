@@ -3,7 +3,8 @@ use crate::encoding::Ucs2Character;
 
 pub const LONG_NAME_MAX_LENGTH: usize = 255;
 
-#[derive(Debug, Eq)]
+#[derive(Eq)]
+#[cfg_attr(test, derive(Debug))]
 pub struct LongFileName {
     ucs2_characters: [Ucs2Character; LONG_NAME_MAX_LENGTH],
 }
@@ -47,15 +48,8 @@ impl LongFileName {
 
 impl PartialEq for LongFileName {
     fn eq(&self, other: &Self) -> bool {
-        let mut left_chars = self
-            .ucs2_characters
-            .iter()
-            .flat_map(|ucs2_character| ucs2_character.to_char().to_uppercase());
-
-        let mut right_chars = other
-            .ucs2_characters
-            .iter()
-            .flat_map(|ucs2_character| ucs2_character.to_char().to_uppercase());
+        let mut left_chars = self.ucs2_characters.iter();
+        let mut right_chars = other.ucs2_characters.iter();
 
         loop {
             let left_char = left_chars.next();
@@ -65,11 +59,11 @@ impl PartialEq for LongFileName {
                 (Some(_), None) | (None, Some(_)) => return false,
                 (None, None) => return true,
                 (Some(l), Some(r)) => {
-                    if l != r {
+                    if !l.eq_ignore_case(r) {
                         return false;
                     }
 
-                    if l == '\0' {
+                    if *l == Ucs2Character::null() {
                         return true;
                     }
                 }
@@ -252,9 +246,10 @@ mod tests {
         }
 
         #[test]
-        fn different_case_with_complex_uppercasing_returns_true() {
+        fn different_case_simple_folding_returns_true() {
+            // Both values are folded to ß when using the simple case folding mapping
             let name_1 = LongFileName::from_str("ß").expect("Provided string should be valid");
-            let name_2 = LongFileName::from_str("SS").expect("Provided string should be valid");
+            let name_2 = LongFileName::from_str("ẞ").expect("Provided string should be valid");
 
             assert_eq!(name_1, name_2, "Values should be equal");
             assert_eq!(name_2, name_1, "Values should be equal");
@@ -279,15 +274,31 @@ mod tests {
         }
 
         #[test]
-        fn first_255_uppercase_chars_equal_but_uppercasing_exceeds_possible_length_returns_false() {
-            // NOTE: ß uppercases to SS, which causes name_2 to be 256 characters long
-            let name_1 = LongFileName::from_str(&"S".repeat(LONG_NAME_MAX_LENGTH))
-                .expect("Provided string should be valid");
-            let name_2 = LongFileName::from_str(&("S".repeat(LONG_NAME_MAX_LENGTH - 1) + "ß"))
-                .expect("Provided string should be valid");
+        fn different_complex_full_folding_returns_false() {
+            // ẞ would be folded to SS when using the full case folding mapping
+            let name_1 = LongFileName::from_str("ẞ").expect("Provided string should be valid");
+            let name_2 = LongFileName::from_str("SS").expect("Provided string should be valid");
 
             assert_ne!(name_1, name_2, "Values should not be equal");
             assert_ne!(name_2, name_1, "Values should not be equal");
+        }
+    }
+
+    mod from_ucs2_characters {
+        use super::*;
+        use core::array::from_fn;
+
+        #[test]
+        fn creates_instance_with_values() {
+            let input: [Ucs2Character; LONG_NAME_MAX_LENGTH] = from_fn(|index| {
+                Ucs2Character::from_u16((index as u16) + 1).expect("Value should be valid")
+            });
+            let long_file_name: LongFileName = input.into();
+
+            assert_eq!(
+                long_file_name.ucs2_characters, input,
+                "Instance should contain same input characters"
+            );
         }
     }
 }

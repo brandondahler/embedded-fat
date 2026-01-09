@@ -1,3 +1,7 @@
+mod case_folding;
+
+use case_folding::*;
+
 use crate::CharacterEncodingError;
 use core::fmt::{Display, Formatter};
 
@@ -36,6 +40,14 @@ impl Ucs2Character {
 
     pub const fn to_u16(self) -> u16 {
         self.0
+    }
+
+    pub fn eq_ignore_case(&self, other: &Ucs2Character) -> bool {
+        if self.0 == other.0 {
+            return true;
+        }
+
+        fold_character(self.0) == fold_character(other.0)
     }
 }
 

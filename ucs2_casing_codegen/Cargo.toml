@@ -1,0 +1,8 @@
+[package]
+name = "ucs2_casing_codegen"
+publish = false
+edition = "2024"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+clio = { version = "0.3", features = ["clap-parse"] }
