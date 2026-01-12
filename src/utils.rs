@@ -52,14 +52,15 @@ pub fn write_le_u32(data: &mut [u8], offset: usize, value: u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mock::{CoreError, IntoCoreError, IoError};
 
     mod ensure {
         use super::*;
 
         #[test]
         fn value_false_propagates_error() {
-            fn test() -> Result<(), MockError> {
-                ensure!(false, MockError);
+            fn test() -> Result<(), CoreError> {
+                ensure!(false, CoreError);
 
                 Ok(())
             }
@@ -69,8 +70,8 @@ mod tests {
 
         #[test]
         fn value_false_converts_error() {
-            fn test() -> Result<(), MockError> {
-                ensure!(false, IntoMockError);
+            fn test() -> Result<(), CoreError> {
+                ensure!(false, IntoCoreError);
 
                 Ok(())
             }
@@ -80,8 +81,8 @@ mod tests {
 
         #[test]
         fn value_true_does_nothing() {
-            fn test() -> Result<(), MockError> {
-                ensure!(true, MockError);
+            fn test() -> Result<(), CoreError> {
+                ensure!(true, CoreError);
 
                 Ok(())
             }
@@ -95,8 +96,8 @@ mod tests {
 
         #[test]
         fn error_propagated_as_some() {
-            fn test() -> Option<Result<(), MockError>> {
-                propagate_iteration_error!(Err(MockError));
+            fn test() -> Option<Result<(), CoreError>> {
+                propagate_iteration_error!(Err(CoreError));
 
                 None
             }
@@ -109,8 +110,8 @@ mod tests {
 
         #[test]
         fn error_converted_to_target() {
-            fn test() -> Option<Result<(), MockError>> {
-                Some(Ok(propagate_iteration_error!(Err(IntoMockError))))
+            fn test() -> Option<Result<(), CoreError>> {
+                Some(Ok(propagate_iteration_error!(Err(IntoCoreError))))
             }
 
             assert!(
@@ -121,8 +122,8 @@ mod tests {
 
         #[test]
         fn non_error_input_unwrapped() {
-            fn test() -> Option<Result<(), MockError>> {
-                let input: Result<(), MockError> = Ok(());
+            fn test() -> Option<Result<(), CoreError>> {
+                let input: Result<(), CoreError> = Ok(());
 
                 Some(Ok(propagate_iteration_error!(input)))
             }
@@ -139,8 +140,8 @@ mod tests {
 
         #[test]
         fn inner_error_propagated_as_some() {
-            fn test() -> Option<Result<(), MockError>> {
-                let input: Result<Result<(), MockError>, MockError> = Ok(Err(MockError));
+            fn test() -> Option<Result<(), CoreError>> {
+                let input: Result<Result<(), CoreError>, CoreError> = Ok(Err(CoreError));
 
                 propagate_device_iteration_errors!(input);
 
@@ -155,8 +156,8 @@ mod tests {
 
         #[test]
         fn outer_error_propagated_as_some() {
-            fn test() -> Option<Result<(), MockError>> {
-                let input: Result<Result<(), MockError>, MockError> = Err(MockError);
+            fn test() -> Option<Result<(), CoreError>> {
+                let input: Result<Result<(), CoreError>, CoreError> = Err(CoreError);
 
                 propagate_device_iteration_errors!(input);
 
@@ -171,9 +172,9 @@ mod tests {
 
         #[test]
         fn inner_error_converted_to_target() {
-            fn test() -> Option<Result<(), MockError>> {
-                let input: Result<Result<(), IntoMockError>, IntoMockError> =
-                    Ok(Err(IntoMockError));
+            fn test() -> Option<Result<(), CoreError>> {
+                let input: Result<Result<(), IntoCoreError>, IntoCoreError> =
+                    Ok(Err(IntoCoreError));
 
                 propagate_device_iteration_errors!(input);
 
@@ -188,8 +189,8 @@ mod tests {
 
         #[test]
         fn outer_error_converted_to_target() {
-            fn test() -> Option<Result<(), MockError>> {
-                let input: Result<Result<(), IntoMockError>, IntoMockError> = Err(IntoMockError);
+            fn test() -> Option<Result<(), CoreError>> {
+                let input: Result<Result<(), IntoCoreError>, IntoCoreError> = Err(IntoCoreError);
 
                 propagate_device_iteration_errors!(input);
 
@@ -204,8 +205,8 @@ mod tests {
 
         #[test]
         fn non_error_input_unwrapped() {
-            fn test() -> Option<Result<(), MockError>> {
-                let input: Result<Result<(), IntoMockError>, IntoMockError> = Ok(Ok(()));
+            fn test() -> Option<Result<(), CoreError>> {
+                let input: Result<Result<(), IntoCoreError>, IntoCoreError> = Ok(Ok(()));
 
                 Some(Ok(propagate_device_iteration_errors!(input)))
             }
@@ -370,15 +371,6 @@ mod tests {
                 [0xFF, 0x12, 0x34, 0x56, 0x78],
                 "Correct value should be written"
             );
-        }
-    }
-
-    struct MockError;
-    struct IntoMockError;
-
-    impl From<IntoMockError> for MockError {
-        fn from(value: IntoMockError) -> Self {
-            Self
         }
     }
 }

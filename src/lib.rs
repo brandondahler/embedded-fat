@@ -34,4 +34,4 @@ pub use directory_entry::{
 pub use directory_item::{DirectoryItemError, DirectoryItemIterationError};
 pub use encoding::{AsciiOnlyEncoder, CharacterEncodingError, CodePageEncoder};
 pub use file::{File, FileError};
-pub use file_system::{FileSystem, FileSystemError};
+pub use file_system::{FileSystem, FileSystemBuilder, FileSystemError};

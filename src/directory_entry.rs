@@ -17,6 +17,7 @@ use embedded_io_async::{Seek as AsyncSeek, Write as AsyncWrite};
 
 pub const DIRECTORY_ENTRY_SIZE: usize = 32;
 
+#[derive(Debug)]
 pub enum DirectoryEntry {
     Free(FreeDirectoryEntry),
     ShortName(ShortNameDirectoryEntry),

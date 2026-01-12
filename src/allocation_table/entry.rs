@@ -30,10 +30,10 @@ impl AllocationTableEntry {
 #[cfg(test)]
 mod test {
     use super::*;
+    use strum::IntoEnumIterator;
 
     mod from_entry_value {
         use super::*;
-        use strum::IntoEnumIterator;
 
         #[test]
         fn free_value_parsed_successfully() {

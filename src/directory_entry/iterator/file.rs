@@ -9,7 +9,11 @@ use core::ops::DerefMut;
 use embedded_io::{ErrorType, Read, Seek, SeekFrom};
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
-pub struct DirectoryFileEntryIterator<'a, D> {
+#[derive(Debug)]
+pub struct DirectoryFileEntryIterator<'a, D>
+where
+    D: Device,
+{
     device: &'a D,
     allocation_table: &'a AllocationTable,
 
@@ -29,7 +33,7 @@ where
         allocation_table: &'a AllocationTable,
         data_region_base_address: u32,
         bytes_per_cluster: u32,
-        first_cluster_number: u32,
+        start_cluster_number: u32,
     ) -> Self {
         Self {
             device,
@@ -38,7 +42,7 @@ where
             data_region_base_address,
             bytes_per_cluster,
 
-            current_cluster_number: first_cluster_number,
+            current_cluster_number: start_cluster_number,
             current_cluster_offset: 0,
         }
     }
@@ -192,5 +196,1498 @@ where
         }
 
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::directory_entry::FreeDirectoryEntry;
+    use crate::mock::{
+        DataStream, ErroringDevice, ErroringStream, ErroringStreamScenarios, IoError, VoidStream,
+    };
+    use crate::utils::write_le_u32;
+    use crate::{AllocationTableKind, DirectoryEntryError, SingleAccessDevice};
+    use alloc::vec;
+    use alloc::vec::Vec;
+    use embedded_io::ErrorKind;
+
+    mod peek {
+        use super::*;
+
+        #[test]
+        fn initial_iteration_returns_first_entry() {
+            let test_instance = TestInstance::new(1, 1);
+            let mut iterator = test_instance.iterator();
+
+            let result = iterator
+                .peek()
+                .expect("Some should be returned")
+                .expect("Ok should be returned");
+
+            assert!(
+                matches!(
+                    result,
+                    DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
+                ),
+                "Free directory entry should be returned"
+            );
+        }
+
+        #[test]
+        fn second_iteration_returns_second_entry() {
+            let test_instance = TestInstance::new(1, 2);
+            let mut iterator = test_instance.iterator();
+
+            iterator.advance();
+
+            let result = iterator
+                .peek()
+                .expect("Some should be returned")
+                .expect("Ok should be returned");
+
+            assert!(
+                matches!(
+                    result,
+                    DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
+                ),
+                "Free directory entry should be returned"
+            );
+        }
+
+        #[test]
+        fn multiple_peeks_does_not_advance_iterator() {
+            let test_instance = TestInstance::new(1, 2);
+            let mut iterator = test_instance.iterator();
+
+            let result = iterator
+                .peek()
+                .expect("Some should be returned")
+                .expect("Ok should be returned");
+
+            assert!(
+                matches!(
+                    result,
+                    DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
+                ),
+                "Free directory entry should be returned"
+            );
+
+            let result = iterator
+                .peek()
+                .expect("Some should be returned")
+                .expect("Ok should be returned");
+
+            assert!(
+                matches!(
+                    result,
+                    DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
+                ),
+                "Free directory entry should be returned"
+            );
+        }
+
+        #[test]
+        fn after_last_entry_returns_none() {
+            let test_instance = TestInstance::new(1, 1);
+            let mut iterator = test_instance.iterator();
+
+            iterator.advance();
+
+            let result = iterator.peek();
+
+            assert!(result.is_none(), "None should be returned");
+        }
+
+        #[test]
+        fn seek_err_propagated() {
+            let device = SingleAccessDevice::new(ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::SEEK,
+            ));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .peek()
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
+                "StreamError should be returned"
+            );
+        }
+
+        #[test]
+        fn read_err_propagated() {
+            let device = SingleAccessDevice::new(ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::READ,
+            ));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .peek()
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
+                "StreamError should be returned"
+            );
+        }
+
+        #[test]
+        fn stream_end_reached_error_propagated() {
+            let device = SingleAccessDevice::new(DataStream::from_data([]));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .peek()
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamEndReached),
+                "StreamEndReached should be returned"
+            );
+        }
+
+        #[test]
+        fn device_err_propagated() {
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let iterator = DirectoryFileEntryIterator::new(
+                &ErroringDevice,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .peek()
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::DeviceError(IoError(_))),
+                "DeviceError should be returned"
+            );
+        }
+
+        #[test]
+        fn invalid_directory_entry_error_propagated() {
+            let mut data = [0; DIRECTORY_ENTRY_SIZE];
+            data[0] = 0x20;
+
+            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .peek()
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::EntryInvalid(_)),
+                "EntryInvalid should be returned"
+            );
+        }
+    }
+
+    mod advance {
+        use super::*;
+
+        #[test]
+        fn same_cluster_successful() {
+            let test_instance = TestInstance::new(1, 2);
+            let mut iterator = test_instance.iterator();
+
+            let result = iterator.advance().expect("Ok should be returned");
+
+            assert!(result, "True should be returned");
+        }
+
+        #[test]
+        fn different_cluster_transition_successful() {
+            let test_instance = TestInstance::new(2, 1);
+            let mut iterator = test_instance.iterator();
+
+            let result = iterator.advance().expect("Ok should be returned");
+
+            assert!(result, "True should be returned");
+        }
+
+        #[test]
+        fn no_next_cluster_handled_correct() {
+            let test_instance = TestInstance::new(1, 1);
+            let mut iterator = test_instance.iterator();
+
+            let result = iterator.advance().expect("Ok should be returned");
+            assert!(!result, "False should be returned");
+        }
+
+        #[test]
+        fn allocation_table_entry_free_returns_error() {
+            let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
+            write_le_u32(&mut data, 8, 0);
+
+            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                12,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator.advance().expect_err("Err should be returned");
+
+            assert!(
+                matches!(
+                    error,
+                    DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
+                ),
+                "AllocationTableEntryTypeUnexpected should be returned"
+            );
+        }
+
+        #[test]
+        fn allocation_table_entry_reserved_returns_error() {
+            let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
+            write_le_u32(&mut data, 8, 1);
+
+            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                12,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator.advance().expect_err("Err should be returned");
+
+            assert!(
+                matches!(
+                    error,
+                    DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
+                ),
+                "AllocationTableEntryTypeUnexpected should be returned"
+            );
+        }
+
+        #[test]
+        fn allocation_table_entry_bad_sector_returns_error() {
+            let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
+            write_le_u32(&mut data, 8, AllocationTableKind::Fat32.bad_sector_value());
+
+            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                12,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator.advance().expect_err("Err should be returned");
+
+            assert!(
+                matches!(
+                    error,
+                    DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
+                ),
+                "AllocationTableEntryTypeUnexpected should be returned"
+            );
+        }
+
+        #[test]
+        fn stream_seek_error_propagated() {
+            let device = SingleAccessDevice::new(ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::SEEK,
+            ));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator.advance().expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
+                "StreamError should be returned"
+            );
+        }
+
+        #[test]
+        fn stream_read_error_propagated() {
+            let device = SingleAccessDevice::new(ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::READ,
+            ));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator.advance().expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
+                "StreamError should be returned"
+            );
+        }
+
+        #[test]
+        fn stream_end_reached_error_propagated() {
+            let device = SingleAccessDevice::new(DataStream::from_data([]));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator.advance().expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamEndReached),
+                "StreamEndReached should be returned"
+            );
+        }
+
+        #[test]
+        fn device_error_propagated() {
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &ErroringDevice,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator.advance().expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::DeviceError(_)),
+                "DeviceError should be returned"
+            );
+        }
+    }
+
+    mod next {
+        use super::*;
+
+        #[test]
+        fn initial_returns_first_entry() {
+            let test_instance = TestInstance::new(1, 1);
+            let mut iterator = test_instance.iterator();
+
+            let result = iterator
+                .next()
+                .expect("Some should be returned")
+                .expect("Ok should be returned");
+
+            assert!(
+                matches!(
+                    result,
+                    DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
+                ),
+                "Free directory entry should be returned"
+            );
+        }
+
+        #[test]
+        fn second_returns_second_entry() {
+            let test_instance = TestInstance::new(1, 2);
+            let mut iterator = test_instance.iterator();
+
+            let result = iterator
+                .next()
+                .expect("Some should be returned")
+                .expect("Ok should be returned");
+
+            assert!(
+                matches!(
+                    result,
+                    DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
+                ),
+                "Free directory entry should be returned"
+            );
+
+            let result = iterator
+                .next()
+                .expect("Some should be returned")
+                .expect("Ok should be returned");
+
+            assert!(
+                matches!(
+                    result,
+                    DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
+                ),
+                "Free directory entry should be returned"
+            );
+        }
+
+        #[test]
+        fn after_end_returns_none() {
+            let test_instance = TestInstance::new(1, 1);
+            let mut iterator = test_instance.iterator();
+
+            iterator.advance();
+
+            let result = iterator.next();
+
+            assert!(matches!(result, None), "None should be returned");
+        }
+
+        #[test]
+        fn allocation_table_entry_free_returns_error() {
+            let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
+            write_le_u32(&mut data, 8, 0);
+
+            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                12,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .next()
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(
+                    error,
+                    DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
+                ),
+                "AllocationTableEntryTypeUnexpected should be returned"
+            );
+        }
+
+        #[test]
+        fn allocation_table_entry_reserved_returns_error() {
+            let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
+            write_le_u32(&mut data, 8, 1);
+
+            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                12,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .next()
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(
+                    error,
+                    DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
+                ),
+                "AllocationTableEntryTypeUnexpected should be returned"
+            );
+        }
+
+        #[test]
+        fn allocation_table_entry_bad_sector_returns_error() {
+            let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
+            write_le_u32(&mut data, 8, AllocationTableKind::Fat32.bad_sector_value());
+
+            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                12,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .next()
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(
+                    error,
+                    DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
+                ),
+                "AllocationTableEntryTypeUnexpected should be returned"
+            );
+        }
+
+        #[test]
+        fn stream_seek_error_propagated() {
+            let device = SingleAccessDevice::new(ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::SEEK,
+            ));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .next()
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
+                "StreamError should be returned"
+            );
+        }
+
+        #[test]
+        fn stream_read_error_propagated() {
+            let device = SingleAccessDevice::new(ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::READ,
+            ));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .next()
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
+                "StreamError should be returned"
+            );
+        }
+
+        #[test]
+        fn stream_end_reached_error_propagated() {
+            let device = SingleAccessDevice::new(DataStream::from_data([]));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .next()
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamEndReached),
+                "StreamEndReached should be returned"
+            );
+        }
+
+        #[test]
+        fn device_error_propagated() {
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &ErroringDevice,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .next()
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::DeviceError(_)),
+                "DeviceError should be returned"
+            );
+        }
+    }
+
+    mod peek_async {
+        use super::*;
+
+        #[tokio::test]
+        async fn initial_iteration_returns_first_entry() {
+            let test_instance = TestInstance::new(1, 1);
+            let mut iterator = test_instance.iterator();
+
+            let result = iterator
+                .peek()
+                .expect("Some should be returned")
+                .expect("Ok should be returned");
+
+            assert!(
+                matches!(
+                    result,
+                    DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
+                ),
+                "Free directory entry should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn second_iteration_returns_second_entry() {
+            let test_instance = TestInstance::new(1, 2);
+            let mut iterator = test_instance.iterator();
+
+            iterator.advance();
+
+            let result = iterator
+                .peek()
+                .expect("Some should be returned")
+                .expect("Ok should be returned");
+
+            assert!(
+                matches!(
+                    result,
+                    DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
+                ),
+                "Free directory entry should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn multiple_peeks_does_not_advance_iterator() {
+            let test_instance = TestInstance::new(1, 2);
+            let mut iterator = test_instance.iterator();
+
+            let result = iterator
+                .peek_async()
+                .await
+                .expect("Some should be returned")
+                .expect("Ok should be returned");
+
+            assert!(
+                matches!(
+                    result,
+                    DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
+                ),
+                "Free directory entry should be returned"
+            );
+
+            let result = iterator
+                .peek_async()
+                .await
+                .expect("Some should be returned")
+                .expect("Ok should be returned");
+
+            assert!(
+                matches!(
+                    result,
+                    DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
+                ),
+                "Free directory entry should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn after_last_entry_returns_none() {
+            let test_instance = TestInstance::new(1, 1);
+            let mut iterator = test_instance.iterator();
+
+            iterator.advance();
+
+            let result = iterator.peek_async().await;
+
+            assert!(result.is_none(), "None should be returned");
+        }
+
+        #[tokio::test]
+        async fn seek_err_propagated() {
+            let device = SingleAccessDevice::new(ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::SEEK,
+            ));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .peek_async()
+                .await
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
+                "StreamError should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn read_err_propagated() {
+            let device = SingleAccessDevice::new(ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::READ,
+            ));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .peek_async()
+                .await
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
+                "StreamError should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn stream_end_reached_error_propagated() {
+            let device = SingleAccessDevice::new(DataStream::from_data([]));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .peek_async()
+                .await
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamEndReached),
+                "StreamEndReached should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn device_err_propagated() {
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let iterator = DirectoryFileEntryIterator::new(
+                &ErroringDevice,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .peek_async()
+                .await
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::DeviceError(IoError(_))),
+                "DeviceError should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn invalid_directory_entry_error_propagated() {
+            let mut data = [0; DIRECTORY_ENTRY_SIZE];
+            data[0] = 0x20;
+
+            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .peek_async()
+                .await
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::EntryInvalid(_)),
+                "EntryInvalid should be returned"
+            );
+        }
+    }
+
+    mod advance_async {
+        use super::*;
+
+        #[tokio::test]
+        async fn same_cluster_successful() {
+            let test_instance = TestInstance::new(1, 2);
+            let mut iterator = test_instance.iterator();
+
+            let result = iterator
+                .advance_async()
+                .await
+                .expect("Ok should be returned");
+
+            assert!(result, "True should be returned");
+        }
+
+        #[tokio::test]
+        async fn different_cluster_transition_successful() {
+            let test_instance = TestInstance::new(2, 1);
+            let mut iterator = test_instance.iterator();
+
+            let result = iterator
+                .advance_async()
+                .await
+                .expect("Ok should be returned");
+
+            assert!(result, "True should be returned");
+        }
+
+        #[tokio::test]
+        async fn no_next_cluster_handled_correct() {
+            let test_instance = TestInstance::new(1, 1);
+            let mut iterator = test_instance.iterator();
+
+            let result = iterator
+                .advance_async()
+                .await
+                .expect("Ok should be returned");
+            assert!(!result, "False should be returned");
+        }
+
+        #[tokio::test]
+        async fn allocation_table_entry_free_returns_error() {
+            let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
+            write_le_u32(&mut data, 8, 0);
+
+            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                12,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .advance_async()
+                .await
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(
+                    error,
+                    DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
+                ),
+                "AllocationTableEntryTypeUnexpected should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn allocation_table_entry_reserved_returns_error() {
+            let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
+            write_le_u32(&mut data, 8, 1);
+
+            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                12,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .advance_async()
+                .await
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(
+                    error,
+                    DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
+                ),
+                "AllocationTableEntryTypeUnexpected should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn allocation_table_entry_bad_sector_returns_error() {
+            let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
+            write_le_u32(&mut data, 8, AllocationTableKind::Fat32.bad_sector_value());
+
+            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                12,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .advance_async()
+                .await
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(
+                    error,
+                    DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
+                ),
+                "AllocationTableEntryTypeUnexpected should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn stream_seek_error_propagated() {
+            let device = SingleAccessDevice::new(ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::SEEK,
+            ));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .advance_async()
+                .await
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
+                "StreamError should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn stream_read_error_propagated() {
+            let device = SingleAccessDevice::new(ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::READ,
+            ));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .advance_async()
+                .await
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
+                "StreamError should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn stream_end_reached_error_propagated() {
+            let device = SingleAccessDevice::new(DataStream::from_data([]));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .advance_async()
+                .await
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamEndReached),
+                "StreamEndReached should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn device_error_propagated() {
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &ErroringDevice,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .advance_async()
+                .await
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::DeviceError(_)),
+                "DeviceError should be returned"
+            );
+        }
+    }
+
+    mod next_async {
+        use super::*;
+
+        #[tokio::test]
+        async fn initial_returns_first_entry() {
+            let test_instance = TestInstance::new(1, 1);
+            let mut iterator = test_instance.iterator();
+
+            let result = iterator
+                .next_async()
+                .await
+                .expect("Some should be returned")
+                .expect("Ok should be returned");
+
+            assert!(
+                matches!(
+                    result,
+                    DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
+                ),
+                "Free directory entry should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn second_returns_second_entry() {
+            let test_instance = TestInstance::new(1, 2);
+            let mut iterator = test_instance.iterator();
+
+            let result = iterator
+                .next_async()
+                .await
+                .expect("Some should be returned")
+                .expect("Ok should be returned");
+
+            assert!(
+                matches!(
+                    result,
+                    DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
+                ),
+                "Free directory entry should be returned"
+            );
+
+            let result = iterator
+                .next_async()
+                .await
+                .expect("Some should be returned")
+                .expect("Ok should be returned");
+
+            assert!(
+                matches!(
+                    result,
+                    DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
+                ),
+                "Free directory entry should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn after_end_returns_none() {
+            let test_instance = TestInstance::new(1, 1);
+            let mut iterator = test_instance.iterator();
+
+            iterator.advance();
+
+            let result = iterator.next_async().await;
+
+            assert!(matches!(result, None), "None should be returned");
+        }
+
+        #[tokio::test]
+        async fn allocation_table_entry_free_returns_error() {
+            let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
+            write_le_u32(&mut data, 8, 0);
+
+            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                12,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .next_async()
+                .await
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(
+                    error,
+                    DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
+                ),
+                "AllocationTableEntryTypeUnexpected should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn allocation_table_entry_reserved_returns_error() {
+            let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
+            write_le_u32(&mut data, 8, 1);
+
+            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                12,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .next_async()
+                .await
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(
+                    error,
+                    DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
+                ),
+                "AllocationTableEntryTypeUnexpected should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn allocation_table_entry_bad_sector_returns_error() {
+            let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
+            write_le_u32(&mut data, 8, AllocationTableKind::Fat32.bad_sector_value());
+
+            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                12,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .next_async()
+                .await
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(
+                    error,
+                    DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
+                ),
+                "AllocationTableEntryTypeUnexpected should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn stream_seek_error_propagated() {
+            let device = SingleAccessDevice::new(ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::SEEK,
+            ));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .next_async()
+                .await
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
+                "StreamError should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn stream_read_error_propagated() {
+            let device = SingleAccessDevice::new(ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::READ,
+            ));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .next_async()
+                .await
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
+                "StreamError should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn stream_end_reached_error_propagated() {
+            let device = SingleAccessDevice::new(DataStream::from_data([]));
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &device,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .next_async()
+                .await
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::StreamEndReached),
+                "StreamEndReached should be returned"
+            );
+        }
+
+        #[tokio::test]
+        async fn device_error_propagated() {
+            let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+
+            let mut iterator = DirectoryFileEntryIterator::new(
+                &ErroringDevice,
+                &allocation_table,
+                0,
+                DIRECTORY_ENTRY_SIZE as u32,
+                2,
+            );
+
+            let error = iterator
+                .next_async()
+                .await
+                .expect("Some should be returned")
+                .expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryIterationError::DeviceError(_)),
+                "DeviceError should be returned"
+            );
+        }
+    }
+
+    type TestInstanceDevice = SingleAccessDevice<DataStream<Vec<u8>>>;
+
+    struct TestInstance {
+        device: TestInstanceDevice,
+        allocation_table: AllocationTable,
+
+        data_region_base_address: u32,
+        bytes_per_cluster: u32,
+    }
+
+    impl TestInstance {
+        /// Creates an instance where it has the configured number of clusters and entries per
+        /// cluster which form a valid directory file.  All but the last entry will be
+        /// `FreeDirectoryEntry::CurrentOnly`, the last will be `FreeDirectoryEntry::AllFollowing`.
+        fn new(cluster_count: usize, entries_per_cluster: usize) -> Self {
+            let data_region_base_address = (cluster_count + 2) * 4;
+
+            let mut data = vec![
+                0;
+                ((cluster_count + 2) * 4)
+                    + (entries_per_cluster * cluster_count * DIRECTORY_ENTRY_SIZE)
+            ];
+            for cluster_index in 2..(cluster_count + 1) {
+                write_le_u32(&mut data, cluster_index * 4, cluster_index as u32 + 1);
+            }
+            write_le_u32(
+                &mut data,
+                (cluster_count + 1) * 4,
+                AllocationTableKind::Fat32.end_of_chain_value(),
+            );
+
+            for cluster_index in 0..cluster_count {
+                for entry_index in 0..entries_per_cluster {
+                    let is_last_entry = cluster_index == cluster_count - 1
+                        && entry_index == entries_per_cluster - 1;
+
+                    if !is_last_entry {
+                        let entry_address = data_region_base_address
+                            + (cluster_index * entries_per_cluster * DIRECTORY_ENTRY_SIZE)
+                            + (entry_index * DIRECTORY_ENTRY_SIZE);
+
+                        data[entry_address] = 0xE5;
+                    }
+                }
+            }
+
+            Self {
+                device: DataStream::from_data(data).into(),
+                allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0),
+
+                data_region_base_address: data_region_base_address as u32,
+                bytes_per_cluster: (entries_per_cluster * DIRECTORY_ENTRY_SIZE) as u32,
+            }
+        }
+
+        fn iterator(&self) -> DirectoryFileEntryIterator<'_, TestInstanceDevice> {
+            DirectoryFileEntryIterator::new(
+                &self.device,
+                &self.allocation_table,
+                self.data_region_base_address,
+                self.bytes_per_cluster,
+                2,
+            )
+        }
     }
 }

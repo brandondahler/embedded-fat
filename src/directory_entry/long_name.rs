@@ -11,6 +11,7 @@ pub const LONG_NAME_CHARACTERS_PER_ENTRY: usize = 13;
 pub const LONG_NAME_MAX_ENTRY_COUNT: u8 =
     LONG_NAME_MAX_LENGTH.div_ceil(LONG_NAME_CHARACTERS_PER_ENTRY) as u8;
 
+#[derive(Debug)]
 pub struct LongNameDirectoryEntry {
     order_byte: u8,
 

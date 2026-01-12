@@ -2,18 +2,24 @@ use core::fmt::{Display, Formatter};
 use embedded_io::{Error, ErrorKind};
 
 #[derive(Clone, Copy, Debug)]
-pub struct IoError;
+pub struct IoError(pub ErrorKind);
+
+impl Default for IoError {
+    fn default() -> Self {
+        IoError(ErrorKind::Other)
+    }
+}
 
 impl core::error::Error for IoError {}
 
 impl Display for IoError {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        write!(f, "MockError")
+        write!(f, "IoError")
     }
 }
 
 impl Error for IoError {
     fn kind(&self) -> ErrorKind {
-        ErrorKind::Other
+        self.0
     }
 }

@@ -1,5 +1,7 @@
+mod builder;
 mod error;
 
+pub use builder::*;
 pub use error::*;
 
 use crate::allocation_table::AllocationTable;
@@ -28,7 +30,7 @@ where
     allocation_table: AllocationTable,
     bios_parameter_block: BiosParameterBlock,
 
-    on_invalid_directory_entry: Option<IDE>,
+    on_invalid_directory_entry: IDE,
 }
 
 impl<D, CPE, IDE> FileSystem<D, CPE, IDE>
@@ -37,12 +39,6 @@ where
     CPE: CodePageEncoder,
     IDE: Fn(DeviceDirectoryItemIterationError<D>),
 {
-    pub fn with_invalid_directory_entry_callback(mut self, callback: IDE) -> Self {
-        self.on_invalid_directory_entry = Some(callback);
-
-        self
-    }
-
     /// The type of FAT filesystem the loaded instance is
     pub fn allocation_table_kind(&self) -> AllocationTableKind {
         self.allocation_table.kind()
@@ -116,15 +112,17 @@ where
     }
 }
 
-impl<D, S, CPE> FileSystem<D, CPE, fn(DeviceDirectoryItemIterationError<D>)>
+impl<D, S, CPE, IDE> FileSystem<D, CPE, IDE>
 where
     D: SyncDevice<Stream = S>,
     S: Read + Seek,
     CPE: CodePageEncoder,
+    IDE: Fn(DeviceDirectoryItemIterationError<D>),
 {
     pub fn new(
         mut device: D,
         code_page_encoder: CPE,
+        on_invalid_directory_entry: IDE,
     ) -> Result<Self, FileSystemError<D::Error, S::Error>> {
         let mut boot_sector_bytes = [0; 512];
 
@@ -155,18 +153,10 @@ where
             allocation_table,
             bios_parameter_block,
 
-            on_invalid_directory_entry: None,
+            on_invalid_directory_entry,
         })
     }
-}
 
-impl<D, S, CPE, IDE> FileSystem<D, CPE, IDE>
-where
-    D: SyncDevice<Stream = S>,
-    S: Read + Seek,
-    CPE: CodePageEncoder,
-    IDE: Fn(DeviceDirectoryItemIterationError<D>),
-{
     pub fn open(&self, file_path: &str) -> Option<File<'_, D>> {
         self.file_for(&self.find_item(file_path)?)
     }
@@ -183,10 +173,7 @@ where
                 let item = match item_iterator.next()? {
                     Ok(item) => item,
                     Err(error) => {
-                        if let Some(callback) = self.on_invalid_directory_entry.as_ref() {
-                            callback(error);
-                        }
-
+                        (self.on_invalid_directory_entry)(error);
                         continue;
                     }
                 };
@@ -204,15 +191,17 @@ where
         }
     }
 }
-impl<D, S, CPE> FileSystem<D, CPE, fn(DeviceDirectoryItemIterationError<D>)>
+impl<D, S, CPE, IDE> FileSystem<D, CPE, IDE>
 where
     D: AsyncDevice<Stream = S>,
     S: AsyncRead + AsyncSeek,
     CPE: CodePageEncoder,
+    IDE: Fn(DeviceDirectoryItemIterationError<D>),
 {
     pub async fn new_async(
         mut device: D,
         code_page_encoder: CPE,
+        on_invalid_directory_entry: IDE,
     ) -> Result<Self, FileSystemError<D::Error, S::Error>> {
         let mut boot_sector_bytes = [0; 512];
 
@@ -244,18 +233,10 @@ where
             allocation_table,
             bios_parameter_block,
 
-            on_invalid_directory_entry: None,
+            on_invalid_directory_entry,
         })
     }
-}
 
-impl<D, S, CPE, IDE> FileSystem<D, CPE, IDE>
-where
-    D: AsyncDevice<Stream = S>,
-    S: AsyncRead + AsyncSeek,
-    CPE: CodePageEncoder,
-    IDE: Fn(DeviceDirectoryItemIterationError<D>),
-{
     pub async fn open_async(&self, file_path: &str) -> Option<File<'_, D>> {
         self.file_for(&self.find_item_async(file_path).await?)
     }
@@ -272,10 +253,7 @@ where
                 let item = match item_iterator.next_async().await? {
                     Ok(item) => item,
                     Err(error) => {
-                        if let Some(callback) = self.on_invalid_directory_entry.as_ref() {
-                            callback(error);
-                        }
-
+                        (self.on_invalid_directory_entry)(error);
                         continue;
                     }
                 };

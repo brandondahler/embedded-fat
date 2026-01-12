@@ -146,12 +146,13 @@ impl From<CharacterEncodingError> for ShortFileNameError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::AsciiOnlyEncoder;
+    use crate::file_name::ShortFileName;
+    use crate::mock::ScriptedCodePageEncoder;
+    use alloc::string::String;
 
     mod from_str {
         use super::*;
-        use crate::AsciiOnlyEncoder;
-        use crate::file_name::ShortFileName;
-        use alloc::string::String;
 
         const INVALID_CHARACTERS: &str = "\
             \x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F\
@@ -192,7 +193,7 @@ mod tests {
                     continue;
                 }
 
-                let code_page_encoder = MockCodePageEncoder(|character| {
+                let code_page_encoder = ScriptedCodePageEncoder(|character| {
                     if character == 'X' {
                         Ok(byte_value)
                     } else {
@@ -217,7 +218,7 @@ mod tests {
 
         #[test]
         fn e5_special_encoding_handled() {
-            let code_page_encoder = MockCodePageEncoder(|character| Ok(0xE5));
+            let code_page_encoder = ScriptedCodePageEncoder(|character| Ok(0xE5));
 
             let result = ShortFileName::from_str(&code_page_encoder, "XX.X")
                 .expect("Parsing should succeed");
@@ -306,7 +307,7 @@ mod tests {
                     .next()
                     .unwrap() as u8;
 
-                let code_page_encoder = MockCodePageEncoder(|character| {
+                let code_page_encoder = ScriptedCodePageEncoder(|character| {
                     if character == 'X' {
                         Ok(character_byte)
                     } else {
@@ -326,7 +327,7 @@ mod tests {
 
         #[test]
         fn name_encoder_error_propagated() {
-            let code_page_encoder = MockCodePageEncoder(|character| {
+            let code_page_encoder = ScriptedCodePageEncoder(|character| {
                 if character == 'X' {
                     Err(CharacterEncodingError('X'))
                 } else {
@@ -386,7 +387,7 @@ mod tests {
                     .next()
                     .unwrap() as u8;
 
-                let code_page_encoder = MockCodePageEncoder(|character| {
+                let code_page_encoder = ScriptedCodePageEncoder(|character| {
                     if character == 'X' {
                         Ok(character_byte)
                     } else {
@@ -406,7 +407,7 @@ mod tests {
 
         #[test]
         fn extension_encoder_error_propagated() {
-            let code_page_encoder = MockCodePageEncoder(|character| {
+            let code_page_encoder = ScriptedCodePageEncoder(|character| {
                 if character == 'X' {
                     Err(CharacterEncodingError('X'))
                 } else {
@@ -425,28 +426,10 @@ mod tests {
                 "Error should be EncoderError"
             );
         }
-
-        struct MockCodePageEncoder<F>(F)
-        where
-            F: Fn(char) -> Result<u8, CharacterEncodingError>;
-
-        impl<F> CodePageEncoder for MockCodePageEncoder<F>
-        where
-            F: Fn(char) -> Result<u8, CharacterEncodingError>,
-        {
-            fn encode(&self, character: char) -> Result<u8, CharacterEncodingError> {
-                self.0(character)
-            }
-
-            fn uppercase(&self, character: char) -> char {
-                character
-            }
-        }
     }
 
     mod checksum {
         use super::*;
-        use crate::AsciiOnlyEncoder;
 
         #[test]
         fn matches_test_vectors() {
@@ -475,10 +458,10 @@ mod tests {
 #[cfg(test)]
 mod error_tests {
     use super::*;
+    use alloc::string::ToString;
 
     mod display {
         use super::*;
-        use alloc::string::ToString;
 
         #[test]
         fn produces_non_empty_value() {

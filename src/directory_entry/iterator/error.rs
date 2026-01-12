@@ -56,11 +56,11 @@ where
 {
     fn kind(&self) -> ErrorKind {
         match self {
+            DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected => ErrorKind::Other,
             DirectoryEntryIterationError::DeviceError(device_error) => device_error.kind(),
+            DirectoryEntryIterationError::EntryInvalid(_) => ErrorKind::Other,
             DirectoryEntryIterationError::StreamError(stream_error) => stream_error.kind(),
             DirectoryEntryIterationError::StreamEndReached => ErrorKind::Other,
-            DirectoryEntryIterationError::EntryInvalid(_) => ErrorKind::Other,
-            DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected => ErrorKind::Other,
         }
     }
 }
@@ -107,6 +107,99 @@ where
         match value {
             ReadExactError::Other(stream_error) => stream_error.into(),
             ReadExactError::UnexpectedEof => Self::StreamEndReached,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mock::IoError;
+    use crate::{
+        LongNameDirectoryEntryError, ShortNameDirectoryEntryError, ShortNameDirectoryEntryNameError,
+    };
+    use alloc::string::ToString;
+
+    mod display {
+        use super::*;
+
+        #[test]
+        fn produces_non_empty_value() {
+            let values = [
+                DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected,
+                DirectoryEntryIterationError::EntryInvalid(
+                    DirectoryEntryError::ShortNameEntryInvalid(
+                        ShortNameDirectoryEntryError::NameInvalid(
+                            ShortNameDirectoryEntryNameError::new(0x41, 0),
+                        ),
+                    ),
+                ),
+                DirectoryEntryIterationError::DeviceError(IoError::default()),
+                DirectoryEntryIterationError::StreamError(IoError::default()),
+                DirectoryEntryIterationError::StreamEndReached,
+            ];
+
+            for value in values {
+                assert!(
+                    !value.to_string().is_empty(),
+                    "Display implementation should be non-empty"
+                );
+            }
+        }
+    }
+
+    mod kind {
+        use super::*;
+
+        #[test]
+        fn allocation_table_entry_type_unexpected_is_other() {
+            assert_eq!(
+                DirectoryEntryIterationError::<IoError, IoError>::AllocationTableEntryTypeUnexpected.kind(),
+                ErrorKind::Other
+            );
+        }
+
+        #[test]
+        fn device_error_inherits_value() {
+            assert_eq!(
+                DirectoryEntryIterationError::<IoError, IoError>::DeviceError(IoError(
+                    ErrorKind::AddrInUse
+                ))
+                .kind(),
+                ErrorKind::AddrInUse
+            );
+        }
+
+        #[test]
+        fn entry_invalid_is_other() {
+            assert_eq!(
+                DirectoryEntryIterationError::<IoError, IoError>::EntryInvalid(
+                    DirectoryEntryError::LongNameEntryInvalid(
+                        LongNameDirectoryEntryError::EntryNumberInvalid
+                    )
+                )
+                .kind(),
+                ErrorKind::Other
+            );
+        }
+
+        #[test]
+        fn stream_error_inherits_value() {
+            assert_eq!(
+                DirectoryEntryIterationError::<IoError, IoError>::StreamError(IoError(
+                    ErrorKind::AddrInUse
+                ))
+                .kind(),
+                ErrorKind::AddrInUse
+            );
+        }
+
+        #[test]
+        fn stream_end_reached_is_other() {
+            assert_eq!(
+                DirectoryEntryIterationError::<IoError, IoError>::StreamEndReached.kind(),
+                ErrorKind::Other
+            );
         }
     }
 }

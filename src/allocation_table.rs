@@ -10,6 +10,7 @@ use crate::utils::read_le_u32;
 use embedded_io::{Read, Seek, SeekFrom};
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
+#[derive(Debug)]
 pub struct AllocationTable {
     kind: AllocationTableKind,
     base_address: u32,
@@ -117,12 +118,13 @@ mod tests {
     use super::*;
     use crate::Device;
     use crate::device::SyncDevice;
+    use crate::mock::{DataStream, ErroringStream, ErroringStreamScenarios, IoError};
     use core::fmt::{Debug, Display, Formatter};
     use embedded_io::{Error, ErrorKind, ErrorType};
+    use strum::IntoEnumIterator;
 
     mod kind {
         use super::*;
-        use strum::IntoEnumIterator;
 
         #[test]
         fn returns_construction_value() {
@@ -136,13 +138,11 @@ mod tests {
 
     mod read_entry {
         use super::*;
-        use crate::mock::{DataStream, ErroringStream, ErroringStreamScenarios, IoError};
-        use strum::IntoEnumIterator;
 
         #[test]
         fn fat_12_entry_values_read_successfully() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat12, 0);
-            let mut stream = DataStream::with_data(&[0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC]);
+            let mut stream = DataStream::from_data([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC]);
 
             assert_eq!(
                 allocation_table
@@ -180,7 +180,7 @@ mod tests {
         #[test]
         fn fat_16_offset_entry_values_read_successfully() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0);
-            let mut stream = DataStream::with_data(&[0x12, 0x34, 0x56, 0x78]);
+            let mut stream = DataStream::from_data([0x12, 0x34, 0x56, 0x78]);
 
             assert_eq!(
                 allocation_table
@@ -203,7 +203,7 @@ mod tests {
         fn fat_32_offset_entry_values_read_successfully() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
             let mut stream =
-                DataStream::with_data(&[0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xFF]);
+                DataStream::from_data([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xFF]);
 
             // NOTE: Fat32 only uses the lower 28 of the 32 bits
             assert_eq!(
@@ -226,7 +226,7 @@ mod tests {
         #[test]
         fn base_address_honored() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 2);
-            let mut stream = DataStream::with_data(&[0x12, 0x34, 0x56, 0x78]);
+            let mut stream = DataStream::from_data([0x12, 0x34, 0x56, 0x78]);
 
             assert_eq!(
                 allocation_table
@@ -240,7 +240,7 @@ mod tests {
         #[test]
         fn stream_not_long_enough_returns_error() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
-            let mut stream = DataStream::with_data(&[0x12, 0x34]);
+            let mut stream = DataStream::from_data([0x12, 0x34]);
 
             let result = allocation_table
                 .read_entry(&mut stream, 0)
@@ -256,8 +256,8 @@ mod tests {
         fn stream_seek_error_propagated() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
             let mut stream = ErroringStream::new(
-                DataStream::with_data(&[0, 0, 0, 0]),
-                IoError,
+                DataStream::from_data([0, 0, 0, 0]),
+                IoError::default(),
                 ErroringStreamScenarios::SEEK,
             );
 
@@ -275,8 +275,8 @@ mod tests {
         fn stream_read_error_propagated() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
             let mut stream = ErroringStream::new(
-                DataStream::with_data(&[0, 0, 0, 0]),
-                IoError,
+                DataStream::from_data([0, 0, 0, 0]),
+                IoError::default(),
                 ErroringStreamScenarios::READ,
             );
 
@@ -293,13 +293,11 @@ mod tests {
 
     mod read_entry_async {
         use super::*;
-        use crate::mock::{DataStream, ErroringStream, ErroringStreamScenarios, IoError};
-        use strum::IntoEnumIterator;
 
         #[tokio::test]
         async fn fat_12_entry_values_read_successfully() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat12, 0);
-            let mut stream = DataStream::with_data(&[0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC]);
+            let mut stream = DataStream::from_data([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC]);
 
             assert_eq!(
                 allocation_table
@@ -341,7 +339,7 @@ mod tests {
         #[tokio::test]
         async fn fat_16_offset_entry_values_read_successfully() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0);
-            let mut stream = DataStream::with_data(&[0x12, 0x34, 0x56, 0x78]);
+            let mut stream = DataStream::from_data([0x12, 0x34, 0x56, 0x78]);
 
             assert_eq!(
                 allocation_table
@@ -366,7 +364,7 @@ mod tests {
         async fn fat_32_offset_entry_values_read_successfully() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
             let mut stream =
-                DataStream::with_data(&[0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xFF]);
+                DataStream::from_data([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xFF]);
 
             // NOTE: Fat32 only uses the lower 28 of the 32 bits
             assert_eq!(
@@ -391,7 +389,7 @@ mod tests {
         #[tokio::test]
         async fn base_address_honored() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 2);
-            let mut stream = DataStream::with_data(&[0x12, 0x34, 0x56, 0x78]);
+            let mut stream = DataStream::from_data([0x12, 0x34, 0x56, 0x78]);
 
             assert_eq!(
                 allocation_table
@@ -406,7 +404,7 @@ mod tests {
         #[tokio::test]
         async fn stream_not_long_enough_returns_error() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
-            let mut stream = DataStream::with_data(&[0x12, 0x34]);
+            let mut stream = DataStream::from_data([0x12, 0x34]);
 
             let result = allocation_table
                 .read_entry_async(&mut stream, 0)
@@ -423,8 +421,8 @@ mod tests {
         async fn stream_seek_error_propagated() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
             let mut stream = ErroringStream::new(
-                DataStream::with_data(&[0, 0, 0, 0]),
-                IoError,
+                DataStream::from_data([0, 0, 0, 0]),
+                IoError::default(),
                 ErroringStreamScenarios::SEEK,
             );
 
@@ -443,8 +441,8 @@ mod tests {
         async fn stream_read_error_propagated() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
             let mut stream = ErroringStream::new(
-                DataStream::with_data(&[0, 0, 0, 0]),
-                IoError,
+                DataStream::from_data([0, 0, 0, 0]),
+                IoError::default(),
                 ErroringStreamScenarios::READ,
             );
 

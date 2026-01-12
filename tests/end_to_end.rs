@@ -1,7 +1,7 @@
 mod common;
 
 use crate::common::std_file::StdFile;
-use embedded_fat::{AllocationTableKind, AsciiOnlyEncoder, FileSystem, SingleAccessDevice};
+use embedded_fat::{AllocationTableKind, FileSystemBuilder};
 use embedded_io::Read;
 use std::fs::File;
 
@@ -21,12 +21,10 @@ fn fat32() {
 }
 
 fn verify_disk(file_name: &str, expected_allocation_table_kind: AllocationTableKind) {
-    let file_system = FileSystem::new(
-        SingleAccessDevice::new(StdFile::new(
-            File::open(String::from("disks/") + file_name).unwrap(),
-        )),
-        AsciiOnlyEncoder::default(),
-    )
+    let file_system = FileSystemBuilder::from_stream(StdFile::new(
+        File::open(String::from("disks/") + file_name).unwrap(),
+    ))
+    .build()
     .expect("Opening disk works");
 
     assert_eq!(

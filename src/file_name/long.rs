@@ -95,6 +95,7 @@ impl From<CharacterEncodingError> for LongFileNameError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::array::from_fn;
 
     mod from_str {
         use super::*;
@@ -286,7 +287,6 @@ mod tests {
 
     mod from_ucs2_characters {
         use super::*;
-        use core::array::from_fn;
 
         #[test]
         fn creates_instance_with_values() {

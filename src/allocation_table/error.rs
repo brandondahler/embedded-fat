@@ -62,6 +62,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mock::IoError;
+    use alloc::string::ToString;
     use core::fmt::Debug;
 
     mod display {
@@ -71,7 +73,7 @@ mod tests {
         fn produces_non_empty_value() {
             let values = [
                 AllocationTableError::StreamEndReached,
-                AllocationTableError::StreamError(MockError(ErrorKind::Other)),
+                AllocationTableError::StreamError(IoError::default()),
             ];
 
             for value in values {
@@ -83,13 +85,13 @@ mod tests {
         }
     }
 
-    mod error_kind {
+    mod kind {
         use super::*;
 
         #[test]
         fn stream_end_reached_is_other() {
             assert_eq!(
-                AllocationTableError::<MockError>::StreamEndReached.kind(),
+                AllocationTableError::<IoError>::StreamEndReached.kind(),
                 ErrorKind::Other
             );
         }
@@ -97,26 +99,9 @@ mod tests {
         #[test]
         fn stream_error_inherits_value() {
             assert_eq!(
-                AllocationTableError::StreamError(MockError(ErrorKind::AddrInUse)).kind(),
+                AllocationTableError::StreamError(IoError(ErrorKind::AddrInUse)).kind(),
                 ErrorKind::AddrInUse
             );
-        }
-    }
-
-    #[derive(Debug)]
-    struct MockError(ErrorKind);
-
-    impl core::error::Error for MockError {}
-
-    impl Display for MockError {
-        fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-            write!(f, "MockError")
-        }
-    }
-
-    impl Error for MockError {
-        fn kind(&self) -> ErrorKind {
-            self.0
         }
     }
 }
