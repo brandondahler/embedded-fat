@@ -28,10 +28,9 @@ pub use device::{
     SyncFlushableDevice,
 };
 pub use directory_entry::{
-    DirectoryEntryError, LongNameDirectoryEntryError, LongNameDirectoryEntryNameError,
-    ShortNameDirectoryEntryError, ShortNameDirectoryEntryNameError,
+    DirectoryEntryError, LongNameDirectoryEntryError, ShortNameDirectoryEntryError,
 };
 pub use directory_item::{DirectoryItemError, DirectoryItemIterationError};
-pub use encoding::{AsciiOnlyEncoder, CharacterEncodingError, CodePageEncoder};
+pub use encoding::{AsciiOnlyEncoder, CodePageEncoder};
 pub use file::{File, FileError};
 pub use file_system::{FileSystem, FileSystemBuilder, FileSystemError};

@@ -3,7 +3,7 @@ use crate::directory_entry::DirectoryEntryError;
 use core::fmt::{Display, Formatter};
 use embedded_io::{Error, ErrorKind, ReadExactError};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum DirectoryEntryIterationError<DE, SE>
 where
     DE: Error,
@@ -114,10 +114,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::file_name::ShortFileNameError;
     use crate::mock::IoError;
-    use crate::{
-        LongNameDirectoryEntryError, ShortNameDirectoryEntryError, ShortNameDirectoryEntryNameError,
-    };
+    use crate::{LongNameDirectoryEntryError, ShortNameDirectoryEntryError};
     use alloc::string::ToString;
 
     mod display {
@@ -130,7 +129,10 @@ mod tests {
                 DirectoryEntryIterationError::EntryInvalid(
                     DirectoryEntryError::ShortNameEntryInvalid(
                         ShortNameDirectoryEntryError::NameInvalid(
-                            ShortNameDirectoryEntryNameError::new(0x41, 0),
+                            ShortFileNameError::CharacterInvalid {
+                                character: 0x41,
+                                offset: 0,
+                            },
                         ),
                     ),
                 ),

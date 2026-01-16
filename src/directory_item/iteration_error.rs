@@ -10,7 +10,7 @@ use embedded_io::{Error, ErrorType, ReadExactError};
 pub type DeviceDirectoryItemIterationError<D> =
     DirectoryItemIterationError<<D as Device>::Error, <<D as Device>::Stream as ErrorType>::Error>;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum DirectoryItemIterationError<DE, SE> {
     AllocationTableEntryTypeUnexpected,
     DeviceError(DE),

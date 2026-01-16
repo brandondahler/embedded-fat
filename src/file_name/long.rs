@@ -1,4 +1,3 @@
-use crate::CharacterEncodingError;
 use crate::encoding::Ucs2Character;
 
 pub const LONG_NAME_MAX_LENGTH: usize = 255;
@@ -23,12 +22,20 @@ impl LongFileName {
                 character_index < LONG_NAME_MAX_LENGTH,
                 LongFileNameError::InputTooLong
             );
+
             ensure!(
                 Self::is_valid_character(character),
-                LongFileNameError::CharacterInvalid(character)
+                LongFileNameError::CharacterInvalid {
+                    character,
+                    offset: character_index as u8
+                }
             );
 
-            ucs2_characters[character_index] = character.try_into()?;
+            ucs2_characters[character_index] =
+                Ucs2Character::from_char(character).ok_or(LongFileNameError::CharacterInvalid {
+                    character,
+                    offset: character_index as u8,
+                })?;
         }
 
         Ok(Self::new(ucs2_characters))
@@ -80,16 +87,9 @@ impl From<[Ucs2Character; LONG_NAME_MAX_LENGTH]> for LongFileName {
 
 #[derive(Clone, Copy, Debug)]
 pub enum LongFileNameError {
-    CharacterInvalid(char),
-    EncoderError(CharacterEncodingError),
+    CharacterInvalid { character: char, offset: u8 },
     InputEmpty,
     InputTooLong,
-}
-
-impl From<CharacterEncodingError> for LongFileNameError {
-    fn from(value: CharacterEncodingError) -> Self {
-        LongFileNameError::EncoderError(value)
-    }
 }
 
 #[cfg(test)]
@@ -103,9 +103,9 @@ mod tests {
         #[test]
         fn basic_input_parsed_correctly() {
             let mut expected_characters = [Ucs2Character::null(); LONG_NAME_MAX_LENGTH];
-            expected_characters[0] = 'f'.try_into().unwrap();
-            expected_characters[1] = 'o'.try_into().unwrap();
-            expected_characters[2] = 'o'.try_into().unwrap();
+            expected_characters[0] = Ucs2Character::from_char('f').unwrap();
+            expected_characters[1] = Ucs2Character::from_char('o').unwrap();
+            expected_characters[2] = Ucs2Character::from_char('o').unwrap();
 
             let long_file_name =
                 LongFileName::from_str("foo").expect("Name should parse successfully");
@@ -170,7 +170,10 @@ mod tests {
                 assert!(
                     matches!(
                         result,
-                        LongFileNameError::CharacterInvalid(c) if c == invalid_character
+                        LongFileNameError::CharacterInvalid {
+                            character: invalid_character,
+                            offset: 0
+                        }
                     ),
                     "Returned error should be CharacterInvalid(0x{:04X})",
                     invalid_character as u16
@@ -187,9 +190,12 @@ mod tests {
             assert!(
                 matches!(
                     result,
-                    LongFileNameError::EncoderError(CharacterEncodingError(c)) if c == '\u{10000}'
+                    LongFileNameError::CharacterInvalid {
+                        character: '\u{10000}',
+                        offset: 0
+                    }
                 ),
-                "Returned error should be CharacterInvalid(\\u{{10000}})",
+                "CharacterInvalid should be returned",
             );
         }
     }

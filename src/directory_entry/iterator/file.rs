@@ -218,7 +218,7 @@ mod tests {
         #[test]
         fn initial_iteration_returns_first_entry() {
             let test_instance = TestInstance::new(1, 1);
-            let mut iterator = test_instance.iterator();
+            let iterator = test_instance.iterator();
 
             let result = iterator
                 .peek()
@@ -230,7 +230,7 @@ mod tests {
                     result,
                     DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
                 ),
-                "Free directory entry should be returned"
+                "AllFollowing free directory entry should be returned"
             );
         }
 
@@ -251,14 +251,14 @@ mod tests {
                     result,
                     DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
                 ),
-                "Free directory entry should be returned"
+                "AllFollowing free directory entry should be returned"
             );
         }
 
         #[test]
         fn multiple_peeks_does_not_advance_iterator() {
             let test_instance = TestInstance::new(1, 2);
-            let mut iterator = test_instance.iterator();
+            let iterator = test_instance.iterator();
 
             let result = iterator
                 .peek()
@@ -270,7 +270,7 @@ mod tests {
                     result,
                     DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
                 ),
-                "Free directory entry should be returned"
+                "CurrentOnly free directory entry should be returned"
             );
 
             let result = iterator
@@ -283,7 +283,7 @@ mod tests {
                     result,
                     DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
                 ),
-                "Free directory entry should be returned"
+                "CurrentOnly free directory entry should be returned"
             );
         }
 
@@ -440,7 +440,7 @@ mod tests {
 
             let result = iterator.advance().expect("Ok should be returned");
 
-            assert!(result, "True should be returned");
+            assert_eq!(result, true, "True should be returned");
         }
 
         #[test]
@@ -450,7 +450,7 @@ mod tests {
 
             let result = iterator.advance().expect("Ok should be returned");
 
-            assert!(result, "True should be returned");
+            assert_eq!(result, true, "True should be returned");
         }
 
         #[test]
@@ -459,7 +459,7 @@ mod tests {
             let mut iterator = test_instance.iterator();
 
             let result = iterator.advance().expect("Ok should be returned");
-            assert!(!result, "False should be returned");
+            assert_eq!(result, false, "False should be returned");
         }
 
         #[test]
@@ -653,7 +653,7 @@ mod tests {
                     result,
                     DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
                 ),
-                "Free directory entry should be returned"
+                "AllFollowing free directory entry should be returned"
             );
         }
 
@@ -672,7 +672,7 @@ mod tests {
                     result,
                     DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
                 ),
-                "Free directory entry should be returned"
+                "CurrentOnly free directory entry should be returned"
             );
 
             let result = iterator
@@ -685,7 +685,7 @@ mod tests {
                     result,
                     DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
                 ),
-                "Free directory entry should be returned"
+                "AllFollowing free directory entry should be returned"
             );
         }
 
@@ -901,7 +901,7 @@ mod tests {
         #[tokio::test]
         async fn initial_iteration_returns_first_entry() {
             let test_instance = TestInstance::new(1, 1);
-            let mut iterator = test_instance.iterator();
+            let iterator = test_instance.iterator();
 
             let result = iterator
                 .peek()
@@ -913,7 +913,7 @@ mod tests {
                     result,
                     DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
                 ),
-                "Free directory entry should be returned"
+                "AllFollowing free directory entry should be returned"
             );
         }
 
@@ -934,14 +934,14 @@ mod tests {
                     result,
                     DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
                 ),
-                "Free directory entry should be returned"
+                "AllFollowing free directory entry should be returned"
             );
         }
 
         #[tokio::test]
         async fn multiple_peeks_does_not_advance_iterator() {
             let test_instance = TestInstance::new(1, 2);
-            let mut iterator = test_instance.iterator();
+            let iterator = test_instance.iterator();
 
             let result = iterator
                 .peek_async()
@@ -954,7 +954,7 @@ mod tests {
                     result,
                     DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
                 ),
-                "Free directory entry should be returned"
+                "CurrentOnly free directory entry should be returned"
             );
 
             let result = iterator
@@ -968,7 +968,7 @@ mod tests {
                     result,
                     DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
                 ),
-                "Free directory entry should be returned"
+                "CurrentOnly free directory entry should be returned"
             );
         }
 
@@ -1133,7 +1133,7 @@ mod tests {
                 .await
                 .expect("Ok should be returned");
 
-            assert!(result, "True should be returned");
+            assert_eq!(result, true, "True should be returned");
         }
 
         #[tokio::test]
@@ -1146,7 +1146,7 @@ mod tests {
                 .await
                 .expect("Ok should be returned");
 
-            assert!(result, "True should be returned");
+            assert_eq!(result, true, "True should be returned");
         }
 
         #[tokio::test]
@@ -1158,7 +1158,7 @@ mod tests {
                 .advance_async()
                 .await
                 .expect("Ok should be returned");
-            assert!(!result, "False should be returned");
+            assert_eq!(result, false, "False should be returned");
         }
 
         #[tokio::test]
@@ -1374,7 +1374,7 @@ mod tests {
                     result,
                     DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
                 ),
-                "Free directory entry should be returned"
+                "AllFollowing free directory entry should be returned"
             );
         }
 
@@ -1394,7 +1394,7 @@ mod tests {
                     result,
                     DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
                 ),
-                "Free directory entry should be returned"
+                "CurrentOnly free directory entry should be returned"
             );
 
             let result = iterator
@@ -1408,7 +1408,7 @@ mod tests {
                     result,
                     DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
                 ),
-                "Free directory entry should be returned"
+                "AllFollowing free directory entry should be returned"
             );
         }
 

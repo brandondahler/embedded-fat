@@ -2,7 +2,6 @@ mod case_folding;
 
 use case_folding::*;
 
-use crate::CharacterEncodingError;
 use core::fmt::{Display, Formatter};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -22,14 +21,14 @@ impl Ucs2Character {
         }
     }
 
-    pub const fn from_char(value: char) -> Result<Self, CharacterEncodingError> {
+    pub const fn from_char(value: char) -> Option<Self> {
         let codepoint = value as u32;
 
         if codepoint <= 0xFFFF {
             // Unwrap safe because the invalid codepoints map to invalid char values
-            Ok(Self::from_u16(codepoint as u16).unwrap())
+            Some(Self::from_u16(codepoint as u16).unwrap())
         } else {
-            Err(CharacterEncodingError(value))
+            None
         }
     }
 
@@ -54,25 +53,5 @@ impl Ucs2Character {
 impl Display for Ucs2Character {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.0)
-    }
-}
-
-impl From<Ucs2Character> for char {
-    fn from(value: Ucs2Character) -> char {
-        value.to_char()
-    }
-}
-
-impl From<Ucs2Character> for u16 {
-    fn from(value: Ucs2Character) -> u16 {
-        value.to_u16()
-    }
-}
-
-impl TryFrom<char> for Ucs2Character {
-    type Error = CharacterEncodingError;
-
-    fn try_from(value: char) -> Result<Self, Self::Error> {
-        Self::from_char(value)
     }
 }

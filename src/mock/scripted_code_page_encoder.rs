@@ -1,14 +1,14 @@
-use crate::{CharacterEncodingError, CodePageEncoder};
+use crate::CodePageEncoder;
 
 pub struct ScriptedCodePageEncoder<F>(pub F)
 where
-    F: Fn(char) -> Result<u8, CharacterEncodingError>;
+    F: Fn(char) -> Option<u8>;
 
 impl<F> CodePageEncoder for ScriptedCodePageEncoder<F>
 where
-    F: Fn(char) -> Result<u8, CharacterEncodingError>,
+    F: Fn(char) -> Option<u8>,
 {
-    fn encode(&self, character: char) -> Result<u8, CharacterEncodingError> {
+    fn encode(&self, character: char) -> Option<u8> {
         self.0(character)
     }
 

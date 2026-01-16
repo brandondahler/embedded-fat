@@ -179,7 +179,8 @@ mod tests {
             let expected_result = 5;
 
             let result = SyncDevice::with_stream(&device, |_| {
-                SyncDevice::with_stream(&device, |_| {}).expect_err("Inner usage should fail")
+                SyncDevice::with_stream(&device, |_| unreachable!())
+                    .expect_err("Inner usage should fail")
             })
             .expect("Outer usage should succeed");
 
@@ -260,7 +261,7 @@ mod tests {
             let expected_result = 5;
 
             let result = AsyncDevice::with_stream(&device, async |_| {
-                AsyncDevice::with_stream(&device, async |_| {})
+                AsyncDevice::with_stream(&device, async |_| unreachable!())
                     .await
                     .expect_err("Inner usage should fail")
             })

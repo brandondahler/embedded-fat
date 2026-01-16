@@ -1,5 +1,11 @@
+mod error;
+mod parse_error;
+
+pub use error::*;
+pub use parse_error::*;
+
+use crate::CodePageEncoder;
 use crate::directory_entry::SHORT_NAME_CHARACTER_COUNT;
-use crate::{CharacterEncodingError, CodePageEncoder};
 use core::error::Error;
 use core::fmt::{Display, Formatter};
 
@@ -9,50 +15,65 @@ pub struct ShortFileName {
 }
 
 impl ShortFileName {
-    pub fn new(bytes: [u8; SHORT_NAME_CHARACTER_COUNT]) -> Self {
-        Self { bytes }
+    pub fn new(bytes: [u8; SHORT_NAME_CHARACTER_COUNT]) -> Result<Self, ShortFileNameError> {
+        for (index, character) in bytes.iter().enumerate() {
+            let is_valid_character = match character {
+                0x00..=0x1F | 0x22 | 0x2A..=0x2C | 0x2F | 0x3A..=0x3F | 0x5B..=0x5D | 0x7C => false,
+                0x20 => index != 0,
+                _ => true,
+            };
+
+            ensure!(
+                is_valid_character,
+                ShortFileNameError::CharacterInvalid {
+                    character: *character,
+                    offset: index as u8
+                }
+            );
+        }
+
+        Ok(Self { bytes })
     }
 
-    pub fn from_str<CPE>(encoder: &CPE, value: &str) -> Result<Self, ShortFileNameError>
+    pub fn from_str<CPE>(encoder: &CPE, value: &str) -> Result<Self, ShortFileNameParseError>
     where
         CPE: CodePageEncoder,
     {
-        ensure!(!value.is_empty(), ShortFileNameError::InputEmpty);
+        ensure!(!value.is_empty(), ShortFileNameParseError::InputEmpty);
 
-        let (name, extension) = match value.rsplit_once(".") {
+        let (name, extension) = match value.split_once(".") {
             None => (value, ""),
             Some((name, extension)) => (name, extension),
         };
 
-        ensure!(!name.is_empty(), ShortFileNameError::NameEmpty);
+        ensure!(!name.is_empty(), ShortFileNameParseError::NameEmpty);
 
         let mut bytes = [0x20; SHORT_NAME_CHARACTER_COUNT];
 
+        let mut name_len = 0;
         for (index, character) in name.chars().enumerate() {
             // Using index here instead of str.len() because this counts characters instead of bytes
-            ensure!(index < 8, ShortFileNameError::NameTooLong);
+            ensure!(index < 8, ShortFileNameParseError::NameTooLong);
 
-            let mut encoded_character = Self::encode_character(encoder, character)?;
+            let mut encoded_character = Self::encode_character(encoder, character, index as u8)?;
             ensure!(
                 index != 0 || encoded_character != 0x20,
-                ShortFileNameError::NameStartsWithSpace
+                ShortFileNameParseError::NameStartsWithSpace
             );
 
-            if index == 0 && encoded_character == 0xE5 {
-                encoded_character = 0x05;
-            }
-
             bytes[index] = encoded_character;
+            name_len += 1;
         }
 
         for (index, character) in extension.chars().enumerate() {
             // Using index here instead of str.len() because this counts characters instead of bytes
-            ensure!(index < 3, ShortFileNameError::ExtensionTooLong);
+            ensure!(index < 3, ShortFileNameParseError::ExtensionTooLong);
 
-            bytes[8 + index] = Self::encode_character(encoder, character)?;
+            bytes[8 + index] =
+                Self::encode_character(encoder, character, name_len + 1 + index as u8)?;
         }
 
-        Ok(ShortFileName::new(bytes))
+        Ok(Self { bytes })
     }
 
     pub fn bytes(&self) -> &[u8; SHORT_NAME_CHARACTER_COUNT] {
@@ -69,19 +90,30 @@ impl ShortFileName {
         checksum
     }
 
-    fn encode_character<CPE>(encoder: &CPE, character: char) -> Result<u8, ShortFileNameError>
+    fn encode_character<CPE>(
+        encoder: &CPE,
+        character: char,
+        offset: u8,
+    ) -> Result<u8, ShortFileNameParseError>
     where
         CPE: CodePageEncoder,
     {
         ensure!(
             Self::is_valid_character(character),
-            ShortFileNameError::CharacterNotAllowed(character)
+            ShortFileNameParseError::CharacterNotAllowed { character, offset }
         );
 
-        let encoded_character = encoder.encode(encoder.uppercase(character))?;
+        let encoded_character = encoder
+            .encode(encoder.uppercase(character))
+            .ok_or(ShortFileNameParseError::CharacterNotEncodable { character, offset })?;
+
         ensure!(
             Self::is_valid_encoded_character(encoded_character),
-            ShortFileNameError::EncodedCharacterByteNotAllowed(character)
+            ShortFileNameParseError::EncodedCharacterByteNotAllowed {
+                character,
+                encoded_character,
+                offset
+            }
         );
 
         Ok(encoded_character)
@@ -93,53 +125,6 @@ impl ShortFileName {
 
     fn is_valid_encoded_character(encoded_character: u8) -> bool {
         !matches!(encoded_character, 0x00..=0x1F | 0x22 | 0x2A..=0x2C | 0x2E | 0x2F | 0x3A..=0x3F | 0x5B..=0x5D | 0x7C)
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum ShortFileNameError {
-    CharacterNotAllowed(char),
-    EncodedCharacterByteNotAllowed(char),
-    EncoderError(CharacterEncodingError),
-    ExtensionTooLong,
-    InputEmpty,
-    NameEmpty,
-    NameStartsWithSpace,
-    NameTooLong,
-}
-
-impl Display for ShortFileNameError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        match self {
-            ShortFileNameError::CharacterNotAllowed(character) => write!(
-                f,
-                "the character `{character}` (\\u{:08X}) is not allowed",
-                *character as u32
-            ),
-            ShortFileNameError::EncodedCharacterByteNotAllowed(character) => write!(
-                f,
-                "the resulting bytes from encoding character `{character}` (\\u{:08X}) is not allowed",
-                *character as u32
-            ),
-            ShortFileNameError::EncoderError(e) => {
-                write!(f, "an encoder error occurred: {}", e)
-            }
-            ShortFileNameError::ExtensionTooLong => write!(f, "extension is too long"),
-            ShortFileNameError::InputEmpty => write!(f, "input string is empty"),
-            ShortFileNameError::NameEmpty => write!(f, "name component is empty"),
-            ShortFileNameError::NameStartsWithSpace => {
-                write!(f, "name musts not start with a space")
-            }
-            ShortFileNameError::NameTooLong => write!(f, "name is too long"),
-        }
-    }
-}
-
-impl Error for ShortFileNameError {}
-
-impl From<CharacterEncodingError> for ShortFileNameError {
-    fn from(value: CharacterEncodingError) -> Self {
-        Self::EncoderError(value)
     }
 }
 
@@ -195,7 +180,7 @@ mod tests {
 
                 let code_page_encoder = ScriptedCodePageEncoder(|character| {
                     if character == 'X' {
-                        Ok(byte_value)
+                        Some(byte_value)
                     } else {
                         AsciiOnlyEncoder.encode(character)
                     }
@@ -218,7 +203,7 @@ mod tests {
 
         #[test]
         fn e5_special_encoding_handled() {
-            let code_page_encoder = ScriptedCodePageEncoder(|character| Ok(0xE5));
+            let code_page_encoder = ScriptedCodePageEncoder(|character| Some(0xE5));
 
             let result = ShortFileName::from_str(&code_page_encoder, "XX.X")
                 .expect("Parsing should succeed");
@@ -227,7 +212,7 @@ mod tests {
             assert_eq!(
                 *result.bytes(),
                 [
-                    0x05, 0xE5, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+                    0xE5, 0xE5, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
                     0xE5, 0x20, 0x20
                 ],
                 "Result bytes should equal expected bytes"
@@ -240,7 +225,7 @@ mod tests {
                 ShortFileName::from_str(&AsciiOnlyEncoder, "").expect_err("Parsing should fail");
 
             assert!(
-                matches!(err, ShortFileNameError::InputEmpty),
+                matches!(err, ShortFileNameParseError::InputEmpty),
                 "Error should be InputEmpty"
             );
         }
@@ -251,7 +236,7 @@ mod tests {
                 .expect_err("Parsing should fail");
 
             assert!(
-                matches!(err, ShortFileNameError::NameEmpty),
+                matches!(err, ShortFileNameParseError::NameEmpty),
                 "Error should be NameEmpty"
             );
         }
@@ -262,7 +247,7 @@ mod tests {
                 .expect_err("Parsing should fail");
 
             assert!(
-                matches!(err, ShortFileNameError::NameTooLong),
+                matches!(err, ShortFileNameParseError::NameTooLong),
                 "Error should be NameTooLong"
             );
         }
@@ -273,7 +258,7 @@ mod tests {
                 .expect_err("Parsing should fail");
 
             assert!(
-                matches!(err, ShortFileNameError::NameStartsWithSpace),
+                matches!(err, ShortFileNameParseError::NameStartsWithSpace),
                 "Error should be NameStartsWithSpace"
             );
         }
@@ -281,6 +266,11 @@ mod tests {
         #[test]
         fn invalid_name_character_returns_err() {
             for character_index in 0..INVALID_CHARACTERS.len() {
+                if INVALID_CHARACTERS[character_index..character_index + 1] == *"." {
+                    // Starting with a dot technically results in a zero-length name
+                    continue;
+                }
+
                 let mut character_str = String::with_capacity(5);
                 character_str += &INVALID_CHARACTERS[character_index..character_index + 1];
                 character_str += ".txt";
@@ -291,7 +281,10 @@ mod tests {
                 assert!(
                     matches!(
                         err,
-                        ShortFileNameError::CharacterNotAllowed(invalid_character)
+                        ShortFileNameParseError::CharacterNotAllowed {
+                            character: invalid_character,
+                            offset: 0,
+                        }
                     ),
                     "Error should be CharacterNotAllowed"
                 );
@@ -309,7 +302,7 @@ mod tests {
 
                 let code_page_encoder = ScriptedCodePageEncoder(|character| {
                     if character == 'X' {
-                        Ok(character_byte)
+                        Some(character_byte)
                     } else {
                         AsciiOnlyEncoder.encode(character)
                     }
@@ -319,7 +312,14 @@ mod tests {
                     .expect_err("Parsing should fail");
 
                 assert!(
-                    matches!(err, ShortFileNameError::EncodedCharacterByteNotAllowed('X')),
+                    matches!(
+                        err,
+                        ShortFileNameParseError::EncodedCharacterByteNotAllowed {
+                            character: 'X',
+                            encoded_character: character_byte,
+                            offset: 0,
+                        }
+                    ),
                     "Error should be EncodedCharacterByteNotAllowed"
                 );
             }
@@ -329,7 +329,7 @@ mod tests {
         fn name_encoder_error_propagated() {
             let code_page_encoder = ScriptedCodePageEncoder(|character| {
                 if character == 'X' {
-                    Err(CharacterEncodingError('X'))
+                    None
                 } else {
                     AsciiOnlyEncoder.encode(character)
                 }
@@ -341,9 +341,12 @@ mod tests {
             assert!(
                 matches!(
                     err,
-                    ShortFileNameError::EncoderError(CharacterEncodingError('X'))
+                    ShortFileNameParseError::CharacterNotEncodable {
+                        character: 'X',
+                        offset: 0
+                    }
                 ),
-                "Error should be EncoderError"
+                "Error should be CharacterNotEncodable"
             );
         }
 
@@ -353,7 +356,7 @@ mod tests {
                 .expect_err("Parsing should fail");
 
             assert!(
-                matches!(err, ShortFileNameError::ExtensionTooLong),
+                matches!(err, ShortFileNameParseError::ExtensionTooLong),
                 "Error should be ExtensionTooLong"
             );
         }
@@ -362,8 +365,8 @@ mod tests {
         fn invalid_extension_character_returns_err() {
             for character_index in 0..INVALID_CHARACTERS.len() {
                 let mut character_str = String::with_capacity(5);
+                character_str += "foo.";
                 character_str += &INVALID_CHARACTERS[character_index..character_index + 1];
-                character_str += ".txt";
 
                 let err = ShortFileName::from_str(&AsciiOnlyEncoder, &character_str)
                     .expect_err("Parsing should fail");
@@ -371,7 +374,10 @@ mod tests {
                 assert!(
                     matches!(
                         err,
-                        ShortFileNameError::CharacterNotAllowed(invalid_character)
+                        ShortFileNameParseError::CharacterNotAllowed {
+                            character: invalid_character,
+                            offset: 4
+                        }
                     ),
                     "Error should be CharacterNotAllowed"
                 );
@@ -389,7 +395,7 @@ mod tests {
 
                 let code_page_encoder = ScriptedCodePageEncoder(|character| {
                     if character == 'X' {
-                        Ok(character_byte)
+                        Some(character_byte)
                     } else {
                         AsciiOnlyEncoder.encode(character)
                     }
@@ -399,7 +405,14 @@ mod tests {
                     .expect_err("Parsing should fail");
 
                 assert!(
-                    matches!(err, ShortFileNameError::EncodedCharacterByteNotAllowed('X')),
+                    matches!(
+                        err,
+                        ShortFileNameParseError::EncodedCharacterByteNotAllowed {
+                            character: 'X',
+                            encoded_character: character_byte,
+                            offset: 2
+                        }
+                    ),
                     "Error should be EncodedCharacterByteNotAllowed"
                 );
             }
@@ -409,7 +422,7 @@ mod tests {
         fn extension_encoder_error_propagated() {
             let code_page_encoder = ScriptedCodePageEncoder(|character| {
                 if character == 'X' {
-                    Err(CharacterEncodingError('X'))
+                    None
                 } else {
                     AsciiOnlyEncoder.encode(character)
                 }
@@ -421,9 +434,12 @@ mod tests {
             assert!(
                 matches!(
                     err,
-                    ShortFileNameError::EncoderError(CharacterEncodingError('X'))
+                    ShortFileNameParseError::CharacterNotEncodable {
+                        character: 'X',
+                        offset: 2
+                    }
                 ),
-                "Error should be EncoderError"
+                "Error should be CharacterNotEncodable"
             );
         }
     }
@@ -449,37 +465,6 @@ mod tests {
                     short_file_name.checksum(),
                     expected_checksum,
                     "Computed checksum should match expected value"
-                );
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod error_tests {
-    use super::*;
-    use alloc::string::ToString;
-
-    mod display {
-        use super::*;
-
-        #[test]
-        fn produces_non_empty_value() {
-            let values = [
-                ShortFileNameError::CharacterNotAllowed('A'),
-                ShortFileNameError::EncodedCharacterByteNotAllowed('A'),
-                ShortFileNameError::EncoderError(CharacterEncodingError('A')),
-                ShortFileNameError::ExtensionTooLong,
-                ShortFileNameError::InputEmpty,
-                ShortFileNameError::NameEmpty,
-                ShortFileNameError::NameStartsWithSpace,
-                ShortFileNameError::NameTooLong,
-            ];
-
-            for value in values {
-                assert!(
-                    !value.to_string().is_empty(),
-                    "Display implementation should be non-empty"
                 );
             }
         }
