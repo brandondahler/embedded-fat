@@ -2,6 +2,7 @@ use embedded_io::{ErrorType, Read as SyncRead, Seek as SyncSeek, SeekFrom, Write
 use std::fs::File;
 use std::io::{Error, Read, Seek, Write};
 
+#[derive(Debug)]
 pub struct StdFile {
     file: File,
 }

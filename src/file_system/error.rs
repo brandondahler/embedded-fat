@@ -1,18 +1,18 @@
 use crate::BiosParameterBlockError;
 use core::fmt::{Display, Formatter};
-use embedded_io::{Error, ErrorKind, ErrorType, ReadExactError};
+use embedded_io::{Error, ErrorType, ReadExactError};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum FileSystemError<DE, SE>
 where
     DE: Error,
     SE: Error,
 {
     DeviceError(DE),
-    InvalidFatSignature,
     InvalidBiosParameterBlock(BiosParameterBlockError),
-    StreamError(SE),
+    InvalidFatSignature,
     StreamEndReached,
+    StreamError(SE),
 }
 
 impl<DE, SE> core::error::Error for FileSystemError<DE, SE>
@@ -30,19 +30,19 @@ where
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
             FileSystemError::DeviceError(e) => write!(f, "device error occurred: {}", e),
+            FileSystemError::InvalidBiosParameterBlock(e) => {
+                write!(f, "the bios parameter block is invalid: {}", e)
+            }
             FileSystemError::InvalidFatSignature => {
                 write!(
                     f,
                     "the FAT signature at offsets 0xFE and 0xFF were incorrect"
                 )
             }
-            FileSystemError::InvalidBiosParameterBlock(e) => {
-                write!(f, "the bios parameter block is invalid: {}", e)
-            }
-            FileSystemError::StreamError(e) => write!(f, "stream error occurred: {}", e),
             FileSystemError::StreamEndReached => {
                 write!(f, "stream end was reached when not expected")
             }
+            FileSystemError::StreamError(e) => write!(f, "stream error occurred: {}", e),
         }
     }
 }
@@ -76,6 +76,37 @@ where
         match value {
             ReadExactError::Other(stream_error) => stream_error.into(),
             ReadExactError::UnexpectedEof => Self::StreamEndReached,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::string::ToString;
+
+    mod display {
+        use super::*;
+        use crate::mock::IoError;
+
+        #[test]
+        fn produces_non_empty_value() {
+            let values = [
+                FileSystemError::DeviceError(IoError::default()),
+                FileSystemError::InvalidFatSignature,
+                FileSystemError::InvalidBiosParameterBlock(
+                    BiosParameterBlockError::InvalidFatCount,
+                ),
+                FileSystemError::StreamEndReached,
+                FileSystemError::StreamError(IoError::default()),
+            ];
+
+            for value in values {
+                assert!(
+                    !value.to_string().is_empty(),
+                    "Display implementation should be non-empty"
+                );
+            }
         }
     }
 }

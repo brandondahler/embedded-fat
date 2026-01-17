@@ -4,12 +4,12 @@ pub use error::*;
 
 use crate::allocation_table::{AllocationTable, AllocationTableEntry};
 use crate::device::{AsyncDevice, AsyncFlushableDevice, Device, SyncDevice, SyncFlushableDevice};
-use core::cell::RefCell;
 use core::cmp::min;
 use core::ops::DerefMut;
 use embedded_io::{ErrorType, Read, Seek, SeekFrom, Write};
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
+#[derive(Clone, Debug)]
 pub struct File<'a, D>
 where
     D: Device,

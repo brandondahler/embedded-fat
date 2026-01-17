@@ -12,8 +12,8 @@ where
     AllocationTableEntryTypeUnexpected,
     EntryInvalid(DirectoryEntryError),
     DeviceError(DE),
-    StreamError(SE),
     StreamEndReached,
+    StreamError(SE),
 }
 
 impl<DE, SE> core::error::Error for DirectoryEntryIterationError<DE, SE>
@@ -39,11 +39,11 @@ where
             DirectoryEntryIterationError::EntryInvalid(e) => {
                 write!(f, "an entry was invalid: {}", e)
             }
-            DirectoryEntryIterationError::StreamError(e) => {
-                write!(f, "stream error occurred: {}", e)
-            }
             DirectoryEntryIterationError::StreamEndReached => {
                 write!(f, "stream end was reached when not expected")
+            }
+            DirectoryEntryIterationError::StreamError(e) => {
+                write!(f, "stream error occurred: {}", e)
             }
         }
     }
@@ -59,8 +59,8 @@ where
             DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected => ErrorKind::Other,
             DirectoryEntryIterationError::DeviceError(device_error) => device_error.kind(),
             DirectoryEntryIterationError::EntryInvalid(_) => ErrorKind::Other,
-            DirectoryEntryIterationError::StreamError(stream_error) => stream_error.kind(),
             DirectoryEntryIterationError::StreamEndReached => ErrorKind::Other,
+            DirectoryEntryIterationError::StreamError(stream_error) => stream_error.kind(),
         }
     }
 }
@@ -82,8 +82,8 @@ where
 {
     fn from(value: AllocationTableError<SE>) -> Self {
         match value {
-            AllocationTableError::StreamError(device_error) => Self::StreamError(device_error),
             AllocationTableError::StreamEndReached => Self::StreamEndReached,
+            AllocationTableError::StreamError(device_error) => Self::StreamError(device_error),
         }
     }
 }
@@ -137,8 +137,8 @@ mod tests {
                     ),
                 ),
                 DirectoryEntryIterationError::DeviceError(IoError::default()),
-                DirectoryEntryIterationError::StreamError(IoError::default()),
                 DirectoryEntryIterationError::StreamEndReached,
+                DirectoryEntryIterationError::StreamError(IoError::default()),
             ];
 
             for value in values {

@@ -17,7 +17,7 @@ use embedded_io_async::{Seek as AsyncSeek, Write as AsyncWrite};
 
 pub const DIRECTORY_ENTRY_SIZE: usize = 32;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum DirectoryEntry {
     Free(FreeDirectoryEntry),
     ShortName(ShortNameDirectoryEntry),
@@ -55,5 +55,104 @@ impl From<LongNameDirectoryEntry> for DirectoryEntry {
 impl From<ShortNameDirectoryEntry> for DirectoryEntry {
     fn from(value: ShortNameDirectoryEntry) -> Self {
         Self::ShortName(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod from_bytes {
+        use super::*;
+
+        #[test]
+        fn free_all_following_parsed_correctly() {
+            let mut data = [0x00; DIRECTORY_ENTRY_SIZE];
+            data[0] = 0x00;
+
+            let entry = DirectoryEntry::from_bytes(&data).expect("Ok should be returned");
+
+            assert!(
+                matches!(
+                    entry,
+                    DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
+                ),
+                "AllFollowing free entry should be returned"
+            );
+        }
+
+        #[test]
+        fn free_current_only_parsed_correctly() {
+            let mut data = [0x00; DIRECTORY_ENTRY_SIZE];
+            data[0] = 0xE5;
+
+            let entry = DirectoryEntry::from_bytes(&data).expect("Ok should be returned");
+
+            assert!(
+                matches!(entry, DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)),
+                "CurrentOnly free entry should be returned"
+            );
+        }
+
+        #[test]
+        fn short_name_parsed_correctly() {
+            let mut data = [0x00; DIRECTORY_ENTRY_SIZE];
+            data[0] = 0x41;
+            for index in 1..11 {
+                data[index] = 0x20;
+            }
+
+            let entry = DirectoryEntry::from_bytes(&data).expect("Ok should be returned");
+
+            assert!(
+                matches!(entry, DirectoryEntry::ShortName(_)),
+                "ShortName entry should be returned"
+            );
+        }
+
+        #[test]
+        fn short_name_error_propagated() {
+            let mut data = [0x00; DIRECTORY_ENTRY_SIZE];
+            data[0] = 0x01;
+
+            let error = DirectoryEntry::from_bytes(&data).expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryError::ShortNameEntryInvalid(_)),
+                "ShortNameEntryInvalid should be returned"
+            );
+        }
+
+        #[test]
+        fn long_name_parsed_correctly() {
+            let mut data = [0xFF; DIRECTORY_ENTRY_SIZE];
+            data[0] = 0x01;
+            data[1] = 0x41;
+            data[2] = 0x00;
+            data[3] = 0x00;
+            data[4] = 0x00;
+            data[11] = 0x0F;
+
+            let entry = DirectoryEntry::from_bytes(&data).expect("Ok should be returned");
+
+            assert!(
+                matches!(entry, DirectoryEntry::LongName(_)),
+                "LongName entry should be returned"
+            );
+        }
+
+        #[test]
+        fn long_name_error_propagated() {
+            let mut data = [0x00; DIRECTORY_ENTRY_SIZE];
+            data[0] = 0x3F;
+            data[11] = 0x0F;
+
+            let error = DirectoryEntry::from_bytes(&data).expect_err("Err should be returned");
+
+            assert!(
+                matches!(error, DirectoryEntryError::LongNameEntryInvalid(_)),
+                "LongNameEntryInvalid should be returned"
+            );
+        }
     }
 }

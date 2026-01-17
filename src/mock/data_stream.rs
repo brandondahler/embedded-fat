@@ -1,12 +1,11 @@
-use crate::device::SyncDevice;
+use crate::Device;
 use crate::mock::IoError;
-use crate::{AsyncDevice, Device};
 use core::borrow::Borrow;
-use core::cmp::{max, min};
-use core::fmt::{Display, Formatter};
-use embedded_io::{Error, ErrorKind, ErrorType, Read, Seek, SeekFrom};
+use core::cmp::min;
+use embedded_io::{ErrorType, Read, Seek, SeekFrom};
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
+#[derive(Clone, Debug)]
 pub struct DataStream<D>
 where
     D: Borrow<[u8]>,

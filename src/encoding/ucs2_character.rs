@@ -4,7 +4,7 @@ use case_folding::*;
 
 use core::fmt::{Display, Formatter};
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Ucs2Character(u16);
 
 impl Ucs2Character {

@@ -12,6 +12,7 @@ std = ["embedded-io/std", "embedded-io-async/std"]
 bitflags = "2"
 embedded-io = "0.7"
 embedded-io-async = { version = "0.7", optional = true }
+clap = { version = "4.5.54", features = ["derive"] }
 
 [dev-dependencies]
 strum = { version = "0.27", features = ["derive"] }

@@ -1,7 +1,7 @@
 use core::fmt::{Display, Formatter};
 use embedded_io::{Error, ErrorKind};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct IoError(pub ErrorKind);
 
 impl Default for IoError {

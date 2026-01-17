@@ -1,7 +1,8 @@
 use crate::mock::IoError;
-use embedded_io::{Error, ErrorKind, ErrorType, Read, Seek, SeekFrom, Write};
+use embedded_io::{ErrorType, Read, Seek, SeekFrom, Write};
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
+#[derive(Clone, Debug)]
 pub struct VoidStream {
     position: u64,
 }

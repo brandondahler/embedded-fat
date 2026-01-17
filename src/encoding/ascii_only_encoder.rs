@@ -1,6 +1,6 @@
 use crate::CodePageEncoder;
 
-#[derive(Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct AsciiOnlyEncoder;
 
 impl CodePageEncoder for AsciiOnlyEncoder {

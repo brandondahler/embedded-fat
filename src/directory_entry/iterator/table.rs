@@ -3,10 +3,10 @@ use crate::directory_entry::{
     DIRECTORY_ENTRY_SIZE, DirectoryEntry, DirectoryEntryIterationError,
     DirectoryEntryIteratorResult,
 };
-use core::cell::RefCell;
 use embedded_io::{ErrorType, Read, Seek, SeekFrom};
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
+#[derive(Clone, Debug)]
 pub struct DirectoryTableEntryIterator<'a, D>
 where
     D: Device,

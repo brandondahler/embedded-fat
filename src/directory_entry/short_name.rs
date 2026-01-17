@@ -2,11 +2,11 @@ mod error;
 
 pub use error::*;
 
-use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, DirectoryEntryAttributes, DirectoryEntryError};
+use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, DirectoryEntryAttributes};
 use crate::file_name::ShortFileName;
 use crate::utils::{read_le_u16, read_le_u32, write_le_u16, write_le_u32};
 use core::error::Error;
-use core::fmt::{Display, Formatter};
+use core::fmt::Display;
 
 pub const SHORT_NAME_CHARACTER_COUNT: usize = 11;
 
@@ -76,8 +76,6 @@ impl ShortNameDirectoryEntry {
 mod tests {
     use super::*;
     use crate::AsciiOnlyEncoder;
-    use crate::directory_entry::LONG_NAME_CHARACTERS_PER_ENTRY;
-    use crate::encoding::Ucs2Character;
 
     mod from_bytes {
         use super::*;
@@ -106,10 +104,49 @@ mod tests {
                 "file_size should be parsed correctly"
             );
         }
+
+        #[test]
+        fn initial_byte_05_parsed_correctly() {
+            let mut data = TestData::valid().data;
+            data[0] = 0x05;
+
+            let entry =
+                ShortNameDirectoryEntry::from_bytes(&mut data).expect("Ok should be returned");
+
+            assert_eq!(
+                entry.name().bytes()[0],
+                0xE5,
+                "First byte of name should be 0xE5"
+            );
+        }
     }
 
     mod write {
         use super::*;
+
+        #[test]
+        fn roundtrips_correctly() {
+            let data = TestData::valid().data;
+            let entry = ShortNameDirectoryEntry::from_bytes(&data).expect("Ok should be returned");
+
+            let mut result = [0x00; DIRECTORY_ENTRY_SIZE];
+            entry.write(&mut result);
+
+            assert_eq!(result, data, "Input and output bytes should match exactly");
+        }
+
+        #[test]
+        fn initial_byte_05_roundtrips_correctly() {
+            let mut data = TestData::valid().data;
+            data[0] = 0x05;
+
+            let entry = ShortNameDirectoryEntry::from_bytes(&data).expect("Ok should be returned");
+
+            let mut result = [0x00; DIRECTORY_ENTRY_SIZE];
+            entry.write(&mut result);
+
+            assert_eq!(result, data, "Input and output bytes should match exactly");
+        }
     }
 
     struct TestData {

@@ -10,7 +10,7 @@ use crate::utils::read_le_u32;
 use embedded_io::{Read, Seek, SeekFrom};
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct AllocationTable {
     kind: AllocationTableKind,
     base_address: u32,
@@ -119,8 +119,8 @@ mod tests {
     use crate::Device;
     use crate::device::SyncDevice;
     use crate::mock::{DataStream, ErroringStream, ErroringStreamScenarios, IoError};
-    use core::fmt::{Debug, Display, Formatter};
-    use embedded_io::{Error, ErrorKind, ErrorType};
+    use core::fmt::{Debug, Display};
+    use embedded_io::{Error, ErrorType};
     use strum::IntoEnumIterator;
 
     mod kind {

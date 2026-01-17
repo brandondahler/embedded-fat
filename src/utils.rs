@@ -52,7 +52,7 @@ pub fn write_le_u32(data: &mut [u8], offset: usize, value: u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mock::{CoreError, IntoCoreError, IoError};
+    use crate::mock::{CoreError, IntoCoreError};
 
     mod ensure {
         use super::*;

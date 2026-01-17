@@ -1,7 +1,7 @@
 use core::error::Error;
 use core::fmt::{Display, Formatter};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum ShortFileNameParseError {
     CharacterNotAllowed {
         character: char,
@@ -61,7 +61,7 @@ impl Display for ShortFileNameParseError {
 impl Error for ShortFileNameParseError {}
 
 #[cfg(test)]
-mod error_tests {
+mod tests {
     use super::*;
     use alloc::string::ToString;
 

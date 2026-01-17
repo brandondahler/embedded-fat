@@ -1,17 +1,18 @@
 use crate::device::SyncDevice;
 use crate::directory_item::DeviceDirectoryItemIterationError;
 use crate::{
-    AsciiOnlyEncoder, AsyncDevice, AsyncFlushableDevice, CodePageEncoder, Device, FileSystem,
-    FileSystemError, SingleAccessDevice,
+    AsciiOnlyEncoder, AsyncDevice, CodePageEncoder, Device, FileSystem, FileSystemError,
+    SingleAccessDevice,
 };
 use embedded_io::{ErrorType, Read, Seek};
-use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
+use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
 type FileSystemBuilderResult<D, CPE, IDE> = Result<
     FileSystem<D, CPE, IDE>,
     FileSystemError<<D as Device>::Error, <<D as Device>::Stream as ErrorType>::Error>,
 >;
 
+#[derive(Clone, Debug)]
 pub struct FileSystemBuilder<D, CPE, IDE>
 where
     D: Device,

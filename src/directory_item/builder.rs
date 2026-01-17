@@ -9,6 +9,7 @@ const LONG_NAME_PADDING_CHARACTER: Ucs2Character = Ucs2Character::from_u16(0xFFF
 const LONG_NAME_MAX_ENTRY_COUNT: u8 =
     LONG_NAME_MAX_LENGTH.div_ceil(LONG_NAME_CHARACTERS_PER_ENTRY) as u8;
 
+#[derive(Clone, Debug)]
 pub struct DirectoryItemBuilder {
     current_entry_index: u8,
 
@@ -16,6 +17,7 @@ pub struct DirectoryItemBuilder {
     long_name_state: Option<LongNameState>,
 }
 
+#[derive(Clone, Debug)]
 struct LongNameState {
     entry_count: u8,
     short_name_checksum: u8,
@@ -57,14 +59,10 @@ impl DirectoryItemBuilder {
             LongNameState::new(entry.entry_number(), entry.short_name_checksum())
         });
 
-        if entry.entry_number() != (long_name_state.entry_count - self.current_entry_index) {
-            return Err(DirectoryItemError::LongNameEntryNumberWrong);
-        }
-
-        // ensure!(
-        //     entry.entry_number() == (long_name_state.entry_count - self.current_entry_index),
-        //     DirectoryItemError::LongNameEntryNumberWrong
-        // );
+        ensure!(
+            entry.entry_number() == (long_name_state.entry_count - self.current_entry_index),
+            DirectoryItemError::LongNameEntryNumberWrong
+        );
 
         ensure!(
             entry.short_name_checksum() == long_name_state.short_name_checksum,

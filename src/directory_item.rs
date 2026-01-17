@@ -10,11 +10,11 @@ pub use iterator::*;
 
 use crate::CodePageEncoder;
 use crate::directory_entry::ShortNameDirectoryEntry;
-use crate::encoding::Ucs2Character;
 use crate::file_name::{LongFileName, ShortFileName};
 
 pub const DIRECTORY_ENTITY_LONG_NAME_MAX_LENGTH: usize = 255;
 
+#[derive(Clone, Debug)]
 pub struct DirectoryItem {
     short_directory_entry: ShortNameDirectoryEntry,
     long_name: LongFileName,

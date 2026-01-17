@@ -1,5 +1,6 @@
 use crate::CodePageEncoder;
 
+#[derive(Clone, Debug)]
 pub struct ScriptedCodePageEncoder<F>(pub F)
 where
     F: Fn(char) -> Option<u8>;

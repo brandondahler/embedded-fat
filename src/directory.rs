@@ -13,6 +13,7 @@ use crate::directory_entry::DirectoryEntryIterator;
 use crate::directory_item::DirectoryItemIterator;
 use embedded_io::{ErrorType, Read, Seek};
 
+#[derive(Clone, Debug)]
 pub enum Directory<'a, D>
 where
     D: Device,

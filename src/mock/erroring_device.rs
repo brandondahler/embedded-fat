@@ -2,6 +2,7 @@ use crate::device::SyncDevice;
 use crate::mock::{IoError, VoidStream};
 use crate::{AsyncDevice, AsyncFlushableDevice, Device, SyncFlushableDevice};
 
+#[derive(Clone, Copy, Debug)]
 pub struct ErroringDevice;
 
 impl Device for ErroringDevice {

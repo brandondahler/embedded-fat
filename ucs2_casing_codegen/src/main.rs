@@ -5,7 +5,7 @@ use clap::Parser;
 use clio::{Input, Output};
 use std::io::{BufWriter, Write};
 
-#[derive(Parser)]
+#[derive(Clone, Debug, Parser)]
 #[command(name = "ucs2-casing-codegen")]
 struct Args {
     #[arg(long, value_parser)]

@@ -1,8 +1,7 @@
 use crate::device::Device;
 use crate::directory_entry::DirectoryTableEntryIterator;
-use core::cell::RefCell;
-use embedded_io::{ErrorType, Read, Seek};
 
+#[derive(Clone, Debug)]
 pub struct DirectoryTable<'a, D>
 where
     D: Device,

@@ -1,8 +1,8 @@
-use crate::directory_item::DirectoryItemIterationError;
 use core::error::Error;
 use core::fmt::{Display, Formatter};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
+#[cfg_attr(test, derive(strum::EnumIter))]
 pub enum DirectoryItemError {
     LongNameCorrupted,
     LongNameEntryNumberWrong,
@@ -68,3 +68,24 @@ impl Display for DirectoryItemError {
 }
 
 impl Error for DirectoryItemError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::string::ToString;
+    use strum::IntoEnumIterator;
+
+    mod display {
+        use super::*;
+
+        #[test]
+        fn produces_non_empty_value() {
+            for value in DirectoryItemError::iter() {
+                assert!(
+                    !value.to_string().is_empty(),
+                    "Display implementation should be non-empty"
+                );
+            }
+        }
+    }
+}

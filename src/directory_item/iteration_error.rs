@@ -1,11 +1,8 @@
 use crate::Device;
-use crate::directory_entry::{
-    DirectoryEntryError, DirectoryEntryIterationError, LongNameDirectoryEntryError,
-    ShortNameDirectoryEntryError,
-};
+use crate::directory_entry::{DirectoryEntryError, DirectoryEntryIterationError};
 use crate::directory_item::DirectoryItemError;
 use core::fmt::{Display, Formatter};
-use embedded_io::{Error, ErrorType, ReadExactError};
+use embedded_io::{Error, ErrorType};
 
 pub type DeviceDirectoryItemIterationError<D> =
     DirectoryItemIterationError<<D as Device>::Error, <<D as Device>::Stream as ErrorType>::Error>;
@@ -16,8 +13,8 @@ pub enum DirectoryItemIterationError<DE, SE> {
     DeviceError(DE),
     EntryInvalid(DirectoryEntryError),
     ItemError(DirectoryItemError),
-    StreamError(SE),
     StreamEndReached,
+    StreamError(SE),
 }
 
 impl<DE, SE> Display for DirectoryItemIterationError<DE, SE>
@@ -39,11 +36,11 @@ where
             DirectoryItemIterationError::ItemError(e) => {
                 write!(f, "an invalid item was encountered: {}", e)
             }
-            DirectoryItemIterationError::StreamError(e) => {
-                write!(f, "stream error occurred: {}", e)
-            }
             DirectoryItemIterationError::StreamEndReached => {
                 write!(f, "stream end was reached when not expected")
+            }
+            DirectoryItemIterationError::StreamError(e) => {
+                write!(f, "stream error occurred: {}", e)
             }
         }
     }
@@ -68,8 +65,8 @@ where
             }
             DirectoryEntryIterationError::DeviceError(e) => Self::DeviceError(e),
             DirectoryEntryIterationError::EntryInvalid(e) => Self::EntryInvalid(e),
-            DirectoryEntryIterationError::StreamError(e) => Self::StreamError(e),
             DirectoryEntryIterationError::StreamEndReached => Self::StreamEndReached,
+            DirectoryEntryIterationError::StreamError(e) => Self::StreamError(e),
         }
     }
 }
@@ -81,5 +78,46 @@ where
 {
     fn from(value: DirectoryItemError) -> Self {
         Self::ItemError(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::string::ToString;
+
+    mod display {
+        use super::*;
+        use crate::ShortNameDirectoryEntryError;
+        use crate::file_name::ShortFileNameError;
+        use crate::mock::IoError;
+
+        #[test]
+        fn produces_non_empty_value() {
+            let values = [
+                DirectoryItemIterationError::AllocationTableEntryTypeUnexpected,
+                DirectoryItemIterationError::DeviceError(IoError::default()),
+                DirectoryItemIterationError::EntryInvalid(
+                    DirectoryEntryError::ShortNameEntryInvalid(
+                        ShortNameDirectoryEntryError::NameInvalid(
+                            ShortFileNameError::CharacterInvalid {
+                                character: 0,
+                                offset: 0,
+                            },
+                        ),
+                    ),
+                ),
+                DirectoryItemIterationError::ItemError(DirectoryItemError::LongNameCorrupted),
+                DirectoryItemIterationError::StreamEndReached,
+                DirectoryItemIterationError::StreamError(IoError::default()),
+            ];
+
+            for value in values {
+                assert!(
+                    !value.to_string().is_empty(),
+                    "Display implementation should be non-empty"
+                );
+            }
+        }
     }
 }

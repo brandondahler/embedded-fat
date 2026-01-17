@@ -4,12 +4,11 @@ use crate::directory_entry::{
     DIRECTORY_ENTRY_SIZE, DirectoryEntry, DirectoryEntryIterationError,
     DirectoryEntryIteratorResult,
 };
-use core::cell::RefCell;
 use core::ops::DerefMut;
 use embedded_io::{ErrorType, Read, Seek, SeekFrom};
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DirectoryFileEntryIterator<'a, D>
 where
     D: Device,
@@ -207,10 +206,9 @@ mod tests {
         DataStream, ErroringDevice, ErroringStream, ErroringStreamScenarios, IoError, VoidStream,
     };
     use crate::utils::write_le_u32;
-    use crate::{AllocationTableKind, DirectoryEntryError, SingleAccessDevice};
+    use crate::{AllocationTableKind, SingleAccessDevice};
     use alloc::vec;
     use alloc::vec::Vec;
-    use embedded_io::ErrorKind;
 
     mod peek {
         use super::*;

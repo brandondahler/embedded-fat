@@ -24,6 +24,7 @@ use std::io::{BufRead, BufReader};
 //     range handling requiring only 12 extra comparisons.
 const MIN_RUN_SIZE: u16 = 10;
 
+#[derive(Clone, Debug)]
 pub struct CaseFolding {
     parsed_lookup: Vec<(u16, u16)>,
 

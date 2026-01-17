@@ -9,15 +9,11 @@ use crate::bios_parameter_block::BiosParameterBlock;
 use crate::device::{AsyncDevice, Device, SyncDevice};
 use crate::directory::{Directory, DirectoryFile, DirectoryTable};
 use crate::directory_item::{DeviceDirectoryItemIterationError, DirectoryItem};
-use crate::{
-    AllocationTableKind, BiosParameterBlockError, CodePageEncoder, DirectoryItemIterationError,
-    File,
-};
-use core::cell::RefCell;
-use core::cmp::min;
-use embedded_io::{Error, ErrorType, Read, ReadExactError, Seek, SeekFrom, Write};
+use crate::{AllocationTableKind, CodePageEncoder, File};
+use embedded_io::{Error, ErrorType, Read, Seek, SeekFrom, Write};
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
+#[derive(Clone, Debug)]
 pub struct FileSystem<D, CPE, IDE>
 where
     D: Device,

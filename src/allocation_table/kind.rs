@@ -1,4 +1,4 @@
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[cfg_attr(test, derive(strum::EnumIter))]
 pub enum AllocationTableKind {
     Fat12,

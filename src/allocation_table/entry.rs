@@ -1,6 +1,6 @@
 use crate::allocation_table::AllocationTableKind;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AllocationTableEntry {
     Free,
     NextClusterNumber(u32),
@@ -91,9 +91,11 @@ mod test {
             entry_value: u32,
             expected_entry: AllocationTableEntry,
         ) {
-            assert_eq!(
-                AllocationTableEntry::from_entry_value(table_kind, entry_value),
-                expected_entry,
+            assert!(
+                matches!(
+                    AllocationTableEntry::from_entry_value(table_kind, entry_value),
+                    expected_entry
+                ),
                 "table_kind={table_kind:?}, value=0x{entry_value:0X} parses correctly"
             );
         }

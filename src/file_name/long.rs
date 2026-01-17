@@ -2,8 +2,7 @@ use crate::encoding::Ucs2Character;
 
 pub const LONG_NAME_MAX_LENGTH: usize = 255;
 
-#[derive(Eq)]
-#[cfg_attr(test, derive(Debug))]
+#[derive(Clone, Debug, Eq)]
 pub struct LongFileName {
     ucs2_characters: [Ucs2Character; LONG_NAME_MAX_LENGTH],
 }
@@ -85,7 +84,7 @@ impl From<[Ucs2Character; LONG_NAME_MAX_LENGTH]> for LongFileName {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum LongFileNameError {
     CharacterInvalid { character: char, offset: u8 },
     InputEmpty,

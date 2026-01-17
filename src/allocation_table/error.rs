@@ -1,7 +1,7 @@
 use core::fmt::{Display, Formatter};
 use embedded_io::{Error, ErrorKind, ReadExactError};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum AllocationTableError<E>
 where
     E: Error,
@@ -18,10 +18,10 @@ where
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
-            AllocationTableError::StreamError(e) => Display::fmt(&e, f),
             AllocationTableError::StreamEndReached => {
                 write!(f, "stream end was reached when not expected")
             }
+            AllocationTableError::StreamError(e) => Display::fmt(&e, f),
         }
     }
 }
@@ -32,8 +32,8 @@ where
 {
     fn kind(&self) -> ErrorKind {
         match self {
-            AllocationTableError::StreamError(device_error) => device_error.kind(),
             AllocationTableError::StreamEndReached => ErrorKind::Other,
+            AllocationTableError::StreamError(device_error) => device_error.kind(),
         }
     }
 }

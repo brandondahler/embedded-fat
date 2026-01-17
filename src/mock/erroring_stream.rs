@@ -1,13 +1,11 @@
-use crate::device::SyncDevice;
-use crate::mock::IoError;
-use crate::{AsyncDevice, Device};
+use crate::Device;
 use bitflags::bitflags;
-use core::cmp::{max, min};
-use core::fmt::{Display, Formatter};
-use embedded_io::{Error, ErrorKind, ErrorType, Read, Seek, SeekFrom, Write};
+use core::fmt::Display;
+use embedded_io::{Error, ErrorType, Read, Seek, SeekFrom, Write};
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
 bitflags! {
+    #[derive(Clone, Copy, Debug)]
     pub struct ErroringStreamScenarios: u8 {
         const READ  = 1 << 0;
         const SEEK  = 1 << 1;
@@ -21,6 +19,7 @@ bitflags! {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct ErroringStream<S, E>
 where
     S: ErrorType<Error = E>,

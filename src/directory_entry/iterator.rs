@@ -17,6 +17,7 @@ pub type DirectoryEntryIteratorResult<R, D> = Result<
     DirectoryEntryIterationError<<D as Device>::Error, <<D as Device>::Stream as ErrorType>::Error>,
 >;
 
+#[derive(Clone, Debug)]
 pub enum DirectoryEntryIterator<'a, D>
 where
     D: Device,

@@ -1,19 +1,19 @@
 use crate::device::SyncDevice;
-use crate::directory::Directory;
 use crate::directory_entry::{
     DirectoryEntry, DirectoryEntryIterator, FreeDirectoryEntry, LONG_NAME_CHARACTERS_PER_ENTRY,
 };
 use crate::directory_item::{
     DIRECTORY_ENTITY_LONG_NAME_MAX_LENGTH, DeviceDirectoryItemIterationError, DirectoryItem,
-    DirectoryItemBuilder, DirectoryItemError, DirectoryItemIterationError,
+    DirectoryItemBuilder, DirectoryItemError,
 };
 use crate::{AsyncDevice, Device};
-use embedded_io::{Error, ErrorType, Read, Seek};
+use embedded_io::{Read, Seek};
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
 const MAX_ENTRY_COUNT: usize =
     DIRECTORY_ENTITY_LONG_NAME_MAX_LENGTH.div_ceil(LONG_NAME_CHARACTERS_PER_ENTRY) + 1;
 
+#[derive(Clone, Debug)]
 pub struct DirectoryItemIterator<'a, D>
 where
     D: Device,
@@ -29,7 +29,7 @@ where
         Self { entry_iterator }
     }
 
-    fn should_skip_advancing_iterator(&self, directory_item_error: DirectoryItemError) -> bool {
+    fn should_skip_advancing_iterator(&self, directory_item_error: &DirectoryItemError) -> bool {
         matches!(directory_item_error, DirectoryItemError::LongNameOrphaned)
     }
 }
@@ -75,7 +75,7 @@ where
                             builder
                         }
                         Err(directory_item_error) => {
-                            if !self.should_skip_advancing_iterator(directory_item_error) {
+                            if !self.should_skip_advancing_iterator(&directory_item_error) {
                                 propagate_iteration_error!(self.entry_iterator.advance());
                             }
 
@@ -139,7 +139,7 @@ where
                             builder
                         }
                         Err(directory_item_error) => {
-                            if !self.should_skip_advancing_iterator(directory_item_error) {
+                            if !self.should_skip_advancing_iterator(&directory_item_error) {
                                 propagate_iteration_error!(
                                     self.entry_iterator.advance_async().await
                                 );

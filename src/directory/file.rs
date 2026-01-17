@@ -1,9 +1,8 @@
 use crate::allocation_table::AllocationTable;
 use crate::device::Device;
 use crate::directory_entry::DirectoryFileEntryIterator;
-use core::cell::RefCell;
-use embedded_io::ErrorType;
 
+#[derive(Clone, Debug)]
 pub struct DirectoryFile<'a, D>
 where
     D: Device,

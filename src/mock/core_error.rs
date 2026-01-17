@@ -1,7 +1,7 @@
 use core::error::Error;
 use core::fmt::{Display, Formatter};
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct CoreError;
 
 impl Display for CoreError {
@@ -12,6 +12,7 @@ impl Display for CoreError {
 
 impl Error for CoreError {}
 
+#[derive(Clone, Copy, Debug)]
 pub struct IntoCoreError;
 
 impl From<IntoCoreError> for CoreError {

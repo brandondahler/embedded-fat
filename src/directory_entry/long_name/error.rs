@@ -2,7 +2,7 @@ use crate::directory_entry::LONG_NAME_MAX_ENTRY_COUNT;
 use core::error::Error;
 use core::fmt::{Display, Formatter};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum LongNameDirectoryEntryError {
     EntryNumberInvalid,
     NameCharacterInvalid { character: u16, offset: u8 },
@@ -36,7 +36,6 @@ mod tests {
 
     mod display {
         use super::*;
-        use crate::encoding::Ucs2Character;
 
         #[test]
         fn produces_non_empty_value() {

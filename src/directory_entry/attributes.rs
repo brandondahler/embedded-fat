@@ -2,7 +2,7 @@ use bitflags::bitflags;
 
 bitflags! {
     /// Represents a set of flags.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
     pub struct DirectoryEntryAttributes: u8 {
         const ReadOnly      = 1 << 0;
         const Hidden        = 1 << 1;
