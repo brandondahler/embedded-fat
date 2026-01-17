@@ -6,8 +6,6 @@ pub use parse_error::*;
 
 use crate::CodePageEncoder;
 use crate::directory_entry::SHORT_NAME_CHARACTER_COUNT;
-use core::error::Error;
-use core::fmt::Display;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ShortFileName {

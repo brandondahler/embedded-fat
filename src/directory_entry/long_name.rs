@@ -6,8 +6,6 @@ use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, DirectoryEntryAttributes};
 use crate::encoding::Ucs2Character;
 use crate::file_name::LONG_NAME_MAX_LENGTH;
 use crate::utils::{read_le_u16, write_le_u16};
-use core::error::Error;
-use core::fmt::Display;
 
 pub const LONG_NAME_CHARACTERS_PER_ENTRY: usize = 13;
 pub const LONG_NAME_MAX_ENTRY_COUNT: u8 =

@@ -120,7 +120,7 @@ mod tests {
     use crate::device::SyncDevice;
     use crate::mock::{DataStream, ErroringStream, ErroringStreamScenarios, IoError};
     use core::fmt::{Debug, Display};
-    use embedded_io::{Error, ErrorType};
+    use embedded_io::ErrorType;
     use strum::IntoEnumIterator;
 
     mod kind {

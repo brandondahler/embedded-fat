@@ -1,3 +1,4 @@
+use core::error::Error;
 use core::fmt::{Display, Formatter};
 
 #[derive(Clone, Debug)]
@@ -14,7 +15,7 @@ pub enum BiosParameterBlockError {
     InvalidTotalSectorCount32Bit,
 }
 
-impl core::error::Error for BiosParameterBlockError {}
+impl Error for BiosParameterBlockError {}
 
 impl Display for BiosParameterBlockError {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {

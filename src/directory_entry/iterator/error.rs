@@ -1,13 +1,14 @@
 use crate::allocation_table::AllocationTableError;
 use crate::directory_entry::DirectoryEntryError;
+use core::error::Error;
 use core::fmt::{Display, Formatter};
-use embedded_io::{Error, ErrorKind, ReadExactError};
+use embedded_io::ReadExactError;
 
 #[derive(Clone, Debug)]
 pub enum DirectoryEntryIterationError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     AllocationTableEntryTypeUnexpected,
     EntryInvalid(DirectoryEntryError),
@@ -16,17 +17,17 @@ where
     StreamError(SE),
 }
 
-impl<DE, SE> core::error::Error for DirectoryEntryIterationError<DE, SE>
+impl<DE, SE> Error for DirectoryEntryIterationError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
 }
 
 impl<DE, SE> Display for DirectoryEntryIterationError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -49,26 +50,10 @@ where
     }
 }
 
-impl<DE, SE> Error for DirectoryEntryIterationError<DE, SE>
-where
-    DE: Error,
-    SE: Error,
-{
-    fn kind(&self) -> ErrorKind {
-        match self {
-            DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected => ErrorKind::Other,
-            DirectoryEntryIterationError::DeviceError(device_error) => device_error.kind(),
-            DirectoryEntryIterationError::EntryInvalid(_) => ErrorKind::Other,
-            DirectoryEntryIterationError::StreamEndReached => ErrorKind::Other,
-            DirectoryEntryIterationError::StreamError(stream_error) => stream_error.kind(),
-        }
-    }
-}
-
 impl<DE, SE> From<SE> for DirectoryEntryIterationError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn from(value: SE) -> Self {
         Self::StreamError(value)
@@ -78,7 +63,7 @@ where
 impl<DE, SE> From<AllocationTableError<SE>> for DirectoryEntryIterationError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn from(value: AllocationTableError<SE>) -> Self {
         match value {
@@ -91,7 +76,7 @@ where
 impl<DE, SE> From<DirectoryEntryError> for DirectoryEntryIterationError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn from(value: DirectoryEntryError) -> Self {
         Self::EntryInvalid(value)
@@ -101,7 +86,7 @@ where
 impl<DE, SE> From<ReadExactError<SE>> for DirectoryEntryIterationError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn from(value: ReadExactError<SE>) -> Self {
         match value {
@@ -114,9 +99,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ShortNameDirectoryEntryError;
     use crate::file_name::ShortFileNameError;
     use crate::mock::IoError;
-    use crate::{LongNameDirectoryEntryError, ShortNameDirectoryEntryError};
     use alloc::string::ToString;
 
     mod display {
@@ -147,61 +132,6 @@ mod tests {
                     "Display implementation should be non-empty"
                 );
             }
-        }
-    }
-
-    mod kind {
-        use super::*;
-
-        #[test]
-        fn allocation_table_entry_type_unexpected_is_other() {
-            assert_eq!(
-                DirectoryEntryIterationError::<IoError, IoError>::AllocationTableEntryTypeUnexpected.kind(),
-                ErrorKind::Other
-            );
-        }
-
-        #[test]
-        fn device_error_inherits_value() {
-            assert_eq!(
-                DirectoryEntryIterationError::<IoError, IoError>::DeviceError(IoError(
-                    ErrorKind::AddrInUse
-                ))
-                .kind(),
-                ErrorKind::AddrInUse
-            );
-        }
-
-        #[test]
-        fn entry_invalid_is_other() {
-            assert_eq!(
-                DirectoryEntryIterationError::<IoError, IoError>::EntryInvalid(
-                    DirectoryEntryError::LongNameEntryInvalid(
-                        LongNameDirectoryEntryError::EntryNumberInvalid
-                    )
-                )
-                .kind(),
-                ErrorKind::Other
-            );
-        }
-
-        #[test]
-        fn stream_error_inherits_value() {
-            assert_eq!(
-                DirectoryEntryIterationError::<IoError, IoError>::StreamError(IoError(
-                    ErrorKind::AddrInUse
-                ))
-                .kind(),
-                ErrorKind::AddrInUse
-            );
-        }
-
-        #[test]
-        fn stream_end_reached_is_other() {
-            assert_eq!(
-                DirectoryEntryIterationError::<IoError, IoError>::StreamEndReached.kind(),
-                ErrorKind::Other
-            );
         }
     }
 }

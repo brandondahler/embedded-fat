@@ -1,20 +1,21 @@
+use core::error::Error;
 use core::fmt::{Display, Formatter};
-use embedded_io::{Error, ErrorKind, ReadExactError};
+use embedded_io::ReadExactError;
 
 #[derive(Clone, Debug)]
 pub enum AllocationTableError<E>
 where
-    E: Error,
+    E: embedded_io::Error,
 {
     StreamError(E),
     StreamEndReached,
 }
 
-impl<E> core::error::Error for AllocationTableError<E> where E: Error {}
+impl<E> Error for AllocationTableError<E> where E: embedded_io::Error {}
 
 impl<E> Display for AllocationTableError<E>
 where
-    E: Error,
+    E: embedded_io::Error,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -26,21 +27,9 @@ where
     }
 }
 
-impl<E> Error for AllocationTableError<E>
-where
-    E: Error,
-{
-    fn kind(&self) -> ErrorKind {
-        match self {
-            AllocationTableError::StreamEndReached => ErrorKind::Other,
-            AllocationTableError::StreamError(device_error) => device_error.kind(),
-        }
-    }
-}
-
 impl<E> From<E> for AllocationTableError<E>
 where
-    E: Error,
+    E: embedded_io::Error,
 {
     fn from(value: E) -> Self {
         AllocationTableError::StreamError(value)
@@ -49,7 +38,7 @@ where
 
 impl<E> From<ReadExactError<E>> for AllocationTableError<E>
 where
-    E: Error,
+    E: embedded_io::Error,
 {
     fn from(value: ReadExactError<E>) -> Self {
         match value {
@@ -82,26 +71,6 @@ mod tests {
                     "Display implementation should be non-empty"
                 );
             }
-        }
-    }
-
-    mod kind {
-        use super::*;
-
-        #[test]
-        fn stream_end_reached_is_other() {
-            assert_eq!(
-                AllocationTableError::<IoError>::StreamEndReached.kind(),
-                ErrorKind::Other
-            );
-        }
-
-        #[test]
-        fn stream_error_inherits_value() {
-            assert_eq!(
-                AllocationTableError::StreamError(IoError(ErrorKind::AddrInUse)).kind(),
-                ErrorKind::AddrInUse
-            );
         }
     }
 }

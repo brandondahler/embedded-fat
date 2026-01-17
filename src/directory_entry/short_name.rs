@@ -5,8 +5,6 @@ pub use error::*;
 use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, DirectoryEntryAttributes};
 use crate::file_name::ShortFileName;
 use crate::utils::{read_le_u16, read_le_u32, write_le_u16, write_le_u32};
-use core::error::Error;
-use core::fmt::Display;
 
 pub const SHORT_NAME_CHARACTER_COUNT: usize = 11;
 

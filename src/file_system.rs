@@ -2,6 +2,7 @@ mod builder;
 mod error;
 
 pub use builder::*;
+use core::error::Error;
 pub use error::*;
 
 use crate::allocation_table::AllocationTable;
@@ -10,7 +11,7 @@ use crate::device::{AsyncDevice, Device, SyncDevice};
 use crate::directory::{Directory, DirectoryFile, DirectoryTable};
 use crate::directory_item::{DeviceDirectoryItemIterationError, DirectoryItem};
 use crate::{AllocationTableKind, CodePageEncoder, File};
-use embedded_io::{Error, ErrorType, Read, Seek, SeekFrom, Write};
+use embedded_io::{ErrorType, Read, Seek, SeekFrom, Write};
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
 #[derive(Clone, Debug)]
@@ -97,7 +98,7 @@ where
     ) -> Result<(), FileSystemError<DE, SE>>
     where
         DE: Error,
-        SE: Error,
+        SE: embedded_io::Error,
     {
         ensure!(
             boot_sector_bytes[510] == 0x55 && boot_sector_bytes[511] == 0xAA,

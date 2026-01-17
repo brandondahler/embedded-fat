@@ -6,7 +6,7 @@ use crate::device::{AsyncDevice, AsyncFlushableDevice, Device, SyncDevice, SyncF
 use core::cell::RefCell;
 use core::fmt::Display;
 use core::ops::{Deref, DerefMut};
-use embedded_io::{Error, ErrorType, Read, Seek, Write};
+use embedded_io::{ErrorType, Read, Seek, Write};
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
 #[derive(Clone, Debug)]

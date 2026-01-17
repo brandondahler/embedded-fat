@@ -1,14 +1,19 @@
 use crate::Device;
 use crate::directory_entry::{DirectoryEntryError, DirectoryEntryIterationError};
 use crate::directory_item::DirectoryItemError;
+use core::error::Error;
 use core::fmt::{Display, Formatter};
-use embedded_io::{Error, ErrorType};
+use embedded_io::ErrorType;
 
 pub type DeviceDirectoryItemIterationError<D> =
     DirectoryItemIterationError<<D as Device>::Error, <<D as Device>::Stream as ErrorType>::Error>;
 
 #[derive(Clone, Debug)]
-pub enum DirectoryItemIterationError<DE, SE> {
+pub enum DirectoryItemIterationError<DE, SE>
+where
+    DE: Error,
+    SE: embedded_io::Error,
+{
     AllocationTableEntryTypeUnexpected,
     DeviceError(DE),
     EntryInvalid(DirectoryEntryError),
@@ -20,7 +25,7 @@ pub enum DirectoryItemIterationError<DE, SE> {
 impl<DE, SE> Display for DirectoryItemIterationError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -46,17 +51,17 @@ where
     }
 }
 
-impl<DE, SE> core::error::Error for DirectoryItemIterationError<DE, SE>
+impl<DE, SE> Error for DirectoryItemIterationError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
 }
 
 impl<DE, SE> From<DirectoryEntryIterationError<DE, SE>> for DirectoryItemIterationError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn from(value: DirectoryEntryIterationError<DE, SE>) -> Self {
         match value {
@@ -74,7 +79,7 @@ where
 impl<DE, SE> From<DirectoryItemError> for DirectoryItemIterationError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn from(value: DirectoryItemError) -> Self {
         Self::ItemError(value)

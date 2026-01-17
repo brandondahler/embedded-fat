@@ -1,10 +1,11 @@
 mod single_access;
 
+use core::error::Error;
 pub use single_access::*;
 
 use core::fmt::Debug;
 use core::ops::DerefMut;
-use embedded_io::{Error, ErrorType, Read, Seek, Write};
+use embedded_io::{ErrorType, Read, Seek, Write};
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
 pub trait Device {

@@ -1,12 +1,13 @@
 use crate::allocation_table::AllocationTableError;
+use core::error::Error;
 use core::fmt::{Display, Formatter};
-use embedded_io::{Error, ErrorKind, ReadExactError};
+use embedded_io::{ErrorKind, ReadExactError};
 
 #[derive(Clone, Debug)]
 pub enum FileError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     DeviceError(DE),
     SeekPositionBeyondLimits(u64),
@@ -16,17 +17,17 @@ where
     UnexpectedAllocationTableEntryEncountered,
 }
 
-impl<DE, SE> core::error::Error for FileError<DE, SE>
+impl<DE, SE> Error for FileError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
 }
 
 impl<DE, SE> Display for FileError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -51,19 +52,15 @@ where
     }
 }
 
-impl<DE, SE> Error for FileError<DE, SE>
+impl<DE, SE> embedded_io::Error for FileError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn kind(&self) -> ErrorKind {
         match self {
-            FileError::DeviceError(e) => e.kind(),
-            FileError::SeekPositionBeyondLimits(_) => ErrorKind::InvalidInput,
-            FileError::SeekPositionImpossible(_) => ErrorKind::InvalidInput,
-            FileError::StreamEndReached => ErrorKind::Other,
-            FileError::StreamError(e) => e.kind(),
-            FileError::UnexpectedAllocationTableEntryEncountered => ErrorKind::Other,
+            FileError::StreamError(error) => error.kind(),
+            _ => ErrorKind::Other,
         }
     }
 }
@@ -71,7 +68,7 @@ where
 impl<DE, SE> From<SE> for FileError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn from(value: SE) -> Self {
         Self::StreamError(value)
@@ -81,7 +78,7 @@ where
 impl<DE, SE> From<ReadExactError<SE>> for FileError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn from(value: ReadExactError<SE>) -> Self {
         match value {
@@ -94,7 +91,7 @@ where
 impl<DE, SE> From<AllocationTableError<SE>> for FileError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn from(value: AllocationTableError<SE>) -> Self {
         match value {
@@ -107,7 +104,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mock::CoreError;
+    use crate::mock::IoError;
     use alloc::string::ToString;
+    use embedded_io::Error;
     use strum::IntoEnumIterator;
 
     mod display {
@@ -131,6 +131,26 @@ mod tests {
                     "Display implementation should be non-empty"
                 );
             }
+        }
+    }
+
+    mod kind {
+        use super::*;
+
+        #[test]
+        fn stream_error_delegates_to_contained_error() {
+            assert_eq!(
+                FileError::<CoreError, IoError>::StreamError(IoError(ErrorKind::AddrInUse)).kind(),
+                ErrorKind::AddrInUse
+            );
+        }
+
+        #[test]
+        fn non_stream_error_returns_other() {
+            assert_eq!(
+                FileError::<CoreError, IoError>::DeviceError(CoreError).kind(),
+                ErrorKind::Other
+            );
         }
     }
 }

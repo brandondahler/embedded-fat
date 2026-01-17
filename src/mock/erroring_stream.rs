@@ -1,7 +1,7 @@
 use crate::Device;
 use bitflags::bitflags;
 use core::fmt::Display;
-use embedded_io::{Error, ErrorType, Read, Seek, SeekFrom, Write};
+use embedded_io::{ErrorType, Read, Seek, SeekFrom, Write};
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
 bitflags! {
@@ -23,7 +23,7 @@ bitflags! {
 pub struct ErroringStream<S, E>
 where
     S: ErrorType<Error = E>,
-    E: Error + Clone,
+    E: embedded_io::Error + Clone,
 {
     stream: S,
 
@@ -34,7 +34,7 @@ where
 impl<S, E> ErroringStream<S, E>
 where
     S: ErrorType<Error = E>,
-    E: Error + Clone,
+    E: embedded_io::Error + Clone,
 {
     pub fn new(stream: S, error: E, error_scenarios: ErroringStreamScenarios) -> Self {
         Self {
@@ -48,7 +48,7 @@ where
 impl<S, E> ErrorType for ErroringStream<S, E>
 where
     S: ErrorType<Error = E>,
-    E: Error + Clone,
+    E: embedded_io::Error + Clone,
 {
     type Error = E;
 }
@@ -56,7 +56,7 @@ where
 impl<S, E> Read for ErroringStream<S, E>
 where
     S: ErrorType<Error = E> + Read,
-    E: Error + Clone,
+    E: embedded_io::Error + Clone,
 {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         if self.error_scenarios.contains(ErroringStreamScenarios::READ) {
@@ -70,7 +70,7 @@ where
 impl<S, E> AsyncRead for ErroringStream<S, E>
 where
     S: ErrorType<Error = E> + AsyncRead,
-    E: Error + Clone,
+    E: embedded_io::Error + Clone,
 {
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         if self.error_scenarios.contains(ErroringStreamScenarios::READ) {
@@ -84,7 +84,7 @@ where
 impl<S, E> Seek for ErroringStream<S, E>
 where
     S: ErrorType<Error = E> + Seek,
-    E: Error + Clone,
+    E: embedded_io::Error + Clone,
 {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, Self::Error> {
         if self.error_scenarios.contains(ErroringStreamScenarios::SEEK) {
@@ -98,7 +98,7 @@ where
 impl<S, E> AsyncSeek for ErroringStream<S, E>
 where
     S: ErrorType<Error = E> + AsyncSeek,
-    E: Error + Clone,
+    E: embedded_io::Error + Clone,
 {
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64, Self::Error> {
         if self.error_scenarios.contains(ErroringStreamScenarios::SEEK) {
@@ -112,7 +112,7 @@ where
 impl<S, E> Write for ErroringStream<S, E>
 where
     S: ErrorType<Error = E> + Write,
-    E: Error + Clone,
+    E: embedded_io::Error + Clone,
 {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         if self
@@ -140,7 +140,7 @@ where
 impl<S, E> AsyncWrite for ErroringStream<S, E>
 where
     S: ErrorType<Error = E> + AsyncWrite,
-    E: Error + Clone,
+    E: embedded_io::Error + Clone,
 {
     async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         if self

@@ -1,12 +1,13 @@
 use crate::BiosParameterBlockError;
+use core::error::Error;
 use core::fmt::{Display, Formatter};
-use embedded_io::{Error, ErrorType, ReadExactError};
+use embedded_io::{ErrorType, ReadExactError};
 
 #[derive(Clone, Debug)]
 pub enum FileSystemError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     DeviceError(DE),
     InvalidBiosParameterBlock(BiosParameterBlockError),
@@ -15,17 +16,17 @@ where
     StreamError(SE),
 }
 
-impl<DE, SE> core::error::Error for FileSystemError<DE, SE>
+impl<DE, SE> Error for FileSystemError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
 }
 
 impl<DE, SE> Display for FileSystemError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -50,7 +51,7 @@ where
 impl<DE, SE> From<BiosParameterBlockError> for FileSystemError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn from(value: BiosParameterBlockError) -> Self {
         FileSystemError::InvalidBiosParameterBlock(value)
@@ -60,7 +61,7 @@ where
 impl<DE, SE> From<SE> for FileSystemError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn from(value: SE) -> Self {
         FileSystemError::StreamError(value)
@@ -70,7 +71,7 @@ where
 impl<DE, SE> From<ReadExactError<SE>> for FileSystemError<DE, SE>
 where
     DE: Error,
-    SE: Error,
+    SE: embedded_io::Error,
 {
     fn from(value: ReadExactError<SE>) -> Self {
         match value {
