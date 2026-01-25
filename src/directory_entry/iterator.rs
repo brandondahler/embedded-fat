@@ -6,11 +6,21 @@ pub use error::*;
 pub use file::*;
 pub use table::*;
 
-use crate::AsyncDevice;
-use crate::device::{Device, SyncDevice};
+use crate::Device;
 use crate::directory_entry::DirectoryEntry;
-use embedded_io::{ErrorType, Read, Seek};
-use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
+use embedded_io::{ErrorType, SeekFrom};
+
+#[cfg(feature = "sync")]
+use {
+    crate::device::SyncDevice,
+    embedded_io::{Read, Seek},
+};
+
+#[cfg(feature = "async")]
+use {
+    crate::AsyncDevice,
+    embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek},
+};
 
 pub type DirectoryEntryIteratorResult<R, D> = Result<
     R,
@@ -26,6 +36,7 @@ where
     File(DirectoryFileEntryIterator<'a, D>),
 }
 
+#[cfg(feature = "sync")]
 impl<D, S> DirectoryEntryIterator<'_, D>
 where
     D: SyncDevice<Stream = S>,
@@ -53,6 +64,7 @@ where
     }
 }
 
+#[cfg(feature = "async")]
 impl<D, S> DirectoryEntryIterator<'_, D>
 where
     D: AsyncDevice<Stream = S>,
@@ -330,7 +342,7 @@ mod tests {
             }
 
             Self {
-                device: SingleAccessDevice::new(DataStream::from_data(data)),
+                device: SingleAccessDevice::new(DataStream::from_bytes(data)),
                 allocation_table: AllocationTable::new(allocation_table_kind, 0),
 
                 entry_count,

@@ -1,6 +1,6 @@
 /.gradle/
 /.idea/
-/debug/
+/build/
 /target/
 /ucs2_casing_codegen/build/
 /ucs2_casing_codegen/target/

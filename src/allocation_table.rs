@@ -1,13 +1,22 @@
 mod entry;
+mod entry_cluster_number;
 mod error;
 mod kind;
+mod physical_entry;
 
 pub use entry::*;
+pub use entry_cluster_number::*;
 pub use error::*;
 pub use kind::*;
+pub use physical_entry::*;
 
 use crate::utils::read_le_u32;
-use embedded_io::{Read, Seek, SeekFrom};
+use embedded_io::{ErrorType, SeekFrom};
+
+#[cfg(feature = "sync")]
+use embedded_io::{Read, Seek};
+
+#[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
 #[derive(Clone, Debug)]
@@ -25,6 +34,7 @@ impl AllocationTable {
         self.kind
     }
 
+    #[cfg(feature = "sync")]
     pub fn read_entry<S>(
         &self,
         stream: &mut S,
@@ -47,12 +57,15 @@ impl AllocationTable {
             }
         }
 
-        Ok(AllocationTableEntry::from_entry_value(
+        Ok(PhysicalAllocationTableEntry::from_bytes(
             self.kind,
-            self.resolve_entry_value(&entry_value_bytes, entry_address.is_nibble_offset),
-        ))
+            &entry_value_bytes,
+            entry_address.is_nibble_offset,
+        )
+        .as_logical_entry())
     }
 
+    #[cfg(feature = "async")]
     pub async fn read_entry_async<S>(
         &self,
         stream: &mut S,
@@ -77,20 +90,12 @@ impl AllocationTable {
             }
         }
 
-        Ok(AllocationTableEntry::from_entry_value(
+        Ok(PhysicalAllocationTableEntry::from_bytes(
             self.kind,
-            self.resolve_entry_value(&entry_value_bytes, entry_address.is_nibble_offset),
-        ))
-    }
-
-    fn resolve_entry_value(&self, entry_value_bytes: &[u8; 4], is_nibble_offset: bool) -> u32 {
-        let mut entry_value = read_le_u32(entry_value_bytes, 0);
-
-        if is_nibble_offset {
-            entry_value >>= 4;
-        }
-
-        entry_value & self.kind.entry_mask()
+            &entry_value_bytes,
+            entry_address.is_nibble_offset,
+        )
+        .as_logical_entry())
     }
 
     fn resolve_entry_address(&self, cluster_number: u32) -> AllocationTableEntryOffset {
@@ -117,7 +122,6 @@ struct AllocationTableEntryOffset {
 mod tests {
     use super::*;
     use crate::Device;
-    use crate::device::SyncDevice;
     use crate::mock::{DataStream, ErroringStream, ErroringStreamScenarios, IoError};
     use core::fmt::{Debug, Display};
     use embedded_io::ErrorType;
@@ -142,13 +146,15 @@ mod tests {
         #[test]
         fn fat_12_entry_values_read_successfully() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat12, 0);
-            let mut stream = DataStream::from_data([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC]);
+            let mut stream = DataStream::from_bytes([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC]);
 
             assert_eq!(
                 allocation_table
                     .read_entry(&mut stream, 0)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0x412),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0x412).unwrap()
+                ),
                 "Non-offset value should read correctly"
             );
 
@@ -156,7 +162,9 @@ mod tests {
                 allocation_table
                     .read_entry(&mut stream, 1)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0x563),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0x563).unwrap()
+                ),
                 "Nibble-offset value should read correctly"
             );
 
@@ -164,7 +172,9 @@ mod tests {
                 allocation_table
                     .read_entry(&mut stream, 2)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0xA78),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0xA78).unwrap()
+                ),
                 "Byte offset value should read correctly"
             );
 
@@ -172,7 +182,9 @@ mod tests {
                 allocation_table
                     .read_entry(&mut stream, 3)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0xBC9),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0xBC9).unwrap()
+                ),
                 "Byte and nibble offset value should read correctly"
             );
         }
@@ -180,13 +192,15 @@ mod tests {
         #[test]
         fn fat_16_offset_entry_values_read_successfully() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0);
-            let mut stream = DataStream::from_data([0x12, 0x34, 0x56, 0x78]);
+            let mut stream = DataStream::from_bytes([0x12, 0x34, 0x56, 0x78]);
 
             assert_eq!(
                 allocation_table
                     .read_entry(&mut stream, 0)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0x3412),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0x3412).unwrap()
+                ),
                 "Non-offset value should read correctly"
             );
 
@@ -194,7 +208,9 @@ mod tests {
                 allocation_table
                     .read_entry(&mut stream, 1)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0x7856),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0x7856).unwrap()
+                ),
                 "Offset value should read correctly"
             );
         }
@@ -203,14 +219,16 @@ mod tests {
         fn fat_32_offset_entry_values_read_successfully() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
             let mut stream =
-                DataStream::from_data([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xFF]);
+                DataStream::from_bytes([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xFF]);
 
             // NOTE: Fat32 only uses the lower 28 of the 32 bits
             assert_eq!(
                 allocation_table
                     .read_entry(&mut stream, 0)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0x08563412),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0x08563412).unwrap()
+                ),
                 "Non-offset value should read correctly"
             );
 
@@ -218,7 +236,9 @@ mod tests {
                 allocation_table
                     .read_entry(&mut stream, 1)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0x0FDEBC9A),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0x0FDEBC9A).unwrap()
+                ),
                 "Offset value should read correctly"
             );
         }
@@ -226,13 +246,15 @@ mod tests {
         #[test]
         fn base_address_honored() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 2);
-            let mut stream = DataStream::from_data([0x12, 0x34, 0x56, 0x78]);
+            let mut stream = DataStream::from_bytes([0x12, 0x34, 0x56, 0x78]);
 
             assert_eq!(
                 allocation_table
                     .read_entry(&mut stream, 0)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0x7856),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0x7856).unwrap()
+                ),
                 "Value should read correctly"
             );
         }
@@ -240,7 +262,7 @@ mod tests {
         #[test]
         fn stream_not_long_enough_returns_error() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
-            let mut stream = DataStream::from_data([0x12, 0x34]);
+            let mut stream = DataStream::from_bytes([0x12, 0x34]);
 
             let result = allocation_table
                 .read_entry(&mut stream, 0)
@@ -256,7 +278,7 @@ mod tests {
         fn stream_seek_error_propagated() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
             let mut stream = ErroringStream::new(
-                DataStream::from_data([0, 0, 0, 0]),
+                DataStream::from_bytes([0, 0, 0, 0]),
                 IoError::default(),
                 ErroringStreamScenarios::SEEK,
             );
@@ -275,7 +297,7 @@ mod tests {
         fn stream_read_error_propagated() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
             let mut stream = ErroringStream::new(
-                DataStream::from_data([0, 0, 0, 0]),
+                DataStream::from_bytes([0, 0, 0, 0]),
                 IoError::default(),
                 ErroringStreamScenarios::READ,
             );
@@ -297,14 +319,16 @@ mod tests {
         #[tokio::test]
         async fn fat_12_entry_values_read_successfully() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat12, 0);
-            let mut stream = DataStream::from_data([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC]);
+            let mut stream = DataStream::from_bytes([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC]);
 
             assert_eq!(
                 allocation_table
                     .read_entry_async(&mut stream, 0)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0x412),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0x412).unwrap()
+                ),
                 "Non-offset value should read correctly"
             );
 
@@ -313,7 +337,9 @@ mod tests {
                     .read_entry_async(&mut stream, 1)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0x563),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0x563).unwrap()
+                ),
                 "Nibble-offset value should read correctly"
             );
 
@@ -322,7 +348,9 @@ mod tests {
                     .read_entry_async(&mut stream, 2)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0xA78),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0xA78).unwrap()
+                ),
                 "Byte offset value should read correctly"
             );
 
@@ -331,7 +359,9 @@ mod tests {
                     .read_entry_async(&mut stream, 3)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0xBC9),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0xBC9).unwrap()
+                ),
                 "Byte and nibble offset value should read correctly"
             );
         }
@@ -339,14 +369,16 @@ mod tests {
         #[tokio::test]
         async fn fat_16_offset_entry_values_read_successfully() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0);
-            let mut stream = DataStream::from_data([0x12, 0x34, 0x56, 0x78]);
+            let mut stream = DataStream::from_bytes([0x12, 0x34, 0x56, 0x78]);
 
             assert_eq!(
                 allocation_table
                     .read_entry_async(&mut stream, 0)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0x3412),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0x3412).unwrap()
+                ),
                 "Non-offset value should read correctly"
             );
 
@@ -355,7 +387,9 @@ mod tests {
                     .read_entry_async(&mut stream, 1)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0x7856),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0x7856).unwrap()
+                ),
                 "Offset value should read correctly"
             );
         }
@@ -364,7 +398,7 @@ mod tests {
         async fn fat_32_offset_entry_values_read_successfully() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
             let mut stream =
-                DataStream::from_data([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xFF]);
+                DataStream::from_bytes([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xFF]);
 
             // NOTE: Fat32 only uses the lower 28 of the 32 bits
             assert_eq!(
@@ -372,7 +406,9 @@ mod tests {
                     .read_entry_async(&mut stream, 0)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0x08563412),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0x08563412).unwrap()
+                ),
                 "Non-offset value should read correctly"
             );
 
@@ -381,7 +417,9 @@ mod tests {
                     .read_entry_async(&mut stream, 1)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0x0FDEBC9A),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0x0FDEBC9A).unwrap()
+                ),
                 "Offset value should read correctly"
             );
         }
@@ -389,14 +427,16 @@ mod tests {
         #[tokio::test]
         async fn base_address_honored() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 2);
-            let mut stream = DataStream::from_data([0x12, 0x34, 0x56, 0x78]);
+            let mut stream = DataStream::from_bytes([0x12, 0x34, 0x56, 0x78]);
 
             assert_eq!(
                 allocation_table
                     .read_entry_async(&mut stream, 0)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(0x7856),
+                AllocationTableEntry::NextClusterNumber(
+                    AllocationTableEntryClusterNumber::new(0x7856).unwrap()
+                ),
                 "Value should read correctly"
             );
         }
@@ -404,7 +444,7 @@ mod tests {
         #[tokio::test]
         async fn stream_not_long_enough_returns_error() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
-            let mut stream = DataStream::from_data([0x12, 0x34]);
+            let mut stream = DataStream::from_bytes([0x12, 0x34]);
 
             let result = allocation_table
                 .read_entry_async(&mut stream, 0)
@@ -421,7 +461,7 @@ mod tests {
         async fn stream_seek_error_propagated() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
             let mut stream = ErroringStream::new(
-                DataStream::from_data([0, 0, 0, 0]),
+                DataStream::from_bytes([0, 0, 0, 0]),
                 IoError::default(),
                 ErroringStreamScenarios::SEEK,
             );
@@ -441,7 +481,7 @@ mod tests {
         async fn stream_read_error_propagated() {
             let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
             let mut stream = ErroringStream::new(
-                DataStream::from_data([0, 0, 0, 0]),
+                DataStream::from_bytes([0, 0, 0, 0]),
                 IoError::default(),
                 ErroringStreamScenarios::READ,
             );

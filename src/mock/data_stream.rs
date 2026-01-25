@@ -2,40 +2,45 @@ use crate::Device;
 use crate::mock::IoError;
 use core::borrow::Borrow;
 use core::cmp::min;
-use embedded_io::{ErrorType, Read, Seek, SeekFrom};
+use embedded_io::{ErrorType, SeekFrom};
+
+#[cfg(feature = "sync")]
+use embedded_io::{Read, Seek};
+
+#[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
 #[derive(Clone, Debug)]
-pub struct DataStream<D>
+pub struct DataStream<B>
 where
-    D: Borrow<[u8]>,
+    B: Borrow<[u8]>,
 {
-    data: D,
+    bytes: B,
     position: usize,
 }
 
-impl<D> DataStream<D>
+impl<B> DataStream<B>
 where
-    D: Borrow<[u8]>,
+    B: Borrow<[u8]>,
 {
-    pub fn new(data: D, position: usize) -> Self {
-        Self { data, position }
+    pub fn new(bytes: B, position: usize) -> Self {
+        Self { bytes, position }
     }
 
-    pub fn from_data(data: D) -> Self {
-        Self::new(data, 0)
+    pub fn from_bytes(bytes: B) -> Self {
+        Self::new(bytes, 0)
     }
 
     fn read_internal(&mut self, buf: &mut [u8]) -> Result<usize, IoError> {
-        let data = self.data.borrow();
+        let bytes = self.bytes.borrow();
 
-        let start = min(self.position, data.len());
-        let end = min(start + buf.len(), data.len());
+        let start = min(self.position, bytes.len());
+        let end = min(start + buf.len(), bytes.len());
 
         let bytes_read = end - start;
 
         if bytes_read > 0 {
-            buf[0..bytes_read].copy_from_slice(&data[start..end]);
+            buf[0..bytes_read].copy_from_slice(&bytes[start..end]);
             self.position += bytes_read;
         }
 
@@ -45,7 +50,7 @@ where
     fn seek_internal(&mut self, pos: SeekFrom) -> Result<u64, IoError> {
         self.position = match pos {
             SeekFrom::Start(value) => value as usize,
-            SeekFrom::End(value) => (self.data.borrow().len() as i64 + value) as usize,
+            SeekFrom::End(value) => (self.bytes.borrow().len() as i64 + value) as usize,
             SeekFrom::Current(value) => (self.position as i64 + value) as usize,
         };
 

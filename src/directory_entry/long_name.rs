@@ -21,10 +21,10 @@ pub struct LongNameDirectoryEntry {
 
 impl LongNameDirectoryEntry {
     pub fn from_bytes(
-        data: &[u8; DIRECTORY_ENTRY_SIZE],
+        bytes: &[u8; DIRECTORY_ENTRY_SIZE],
     ) -> Result<LongNameDirectoryEntry, LongNameDirectoryEntryError> {
         ensure!(
-            matches!(data[0] & 0x3F, 1..=LONG_NAME_MAX_ENTRY_COUNT),
+            matches!(bytes[0] & 0x3F, 1..=LONG_NAME_MAX_ENTRY_COUNT),
             LongNameDirectoryEntryError::EntryNumberInvalid
         );
 
@@ -36,7 +36,7 @@ impl LongNameDirectoryEntry {
                 _ => ((character_index - 11) * 2) + 28,
             };
 
-            let ucs2_character_codepoint = read_le_u16(data, byte_index);
+            let ucs2_character_codepoint = read_le_u16(bytes, byte_index);
 
             *ucs2_character = Ucs2Character::from_u16(ucs2_character_codepoint).ok_or(
                 LongNameDirectoryEntryError::NameCharacterInvalid {
@@ -47,10 +47,10 @@ impl LongNameDirectoryEntry {
         }
 
         Ok(Self {
-            order_byte: data[0],
+            order_byte: bytes[0],
 
             ucs2_characters,
-            short_name_checksum: data[13],
+            short_name_checksum: bytes[13],
         })
     }
 
@@ -114,7 +114,7 @@ mod tests {
         fn parses_entry_correctly() {
             let mut test_data = TestData::valid();
 
-            let entry = LongNameDirectoryEntry::from_bytes(&mut test_data.data)
+            let entry = LongNameDirectoryEntry::from_bytes(&mut test_data.bytes)
                 .expect("Ok should be returned");
 
             assert_eq!(
@@ -141,7 +141,7 @@ mod tests {
 
         #[test]
         fn entry_number_zero_returns_err() {
-            let mut data = TestData::valid().data;
+            let mut data = TestData::valid().bytes;
             data[0] = 0x00;
 
             let entry =
@@ -155,7 +155,7 @@ mod tests {
 
         #[test]
         fn entry_number_too_large_returns_err() {
-            let mut data = TestData::valid().data;
+            let mut data = TestData::valid().bytes;
             data[0] = 0x3F;
 
             let error =
@@ -169,7 +169,7 @@ mod tests {
 
         #[test]
         fn character_invalid_returns_err() {
-            let mut data = TestData::valid().data;
+            let mut data = TestData::valid().bytes;
             data[3] = 0x00;
             data[4] = 0xD8;
 
@@ -191,7 +191,7 @@ mod tests {
 
         #[test]
         fn roundtrips_correctly() {
-            let data = TestData::valid().data;
+            let data = TestData::valid().bytes;
             let entry = LongNameDirectoryEntry::from_bytes(&data).expect("Ok should be returned");
 
             let mut result = [0x00; DIRECTORY_ENTRY_SIZE];
@@ -202,7 +202,7 @@ mod tests {
     }
 
     struct TestData {
-        data: [u8; DIRECTORY_ENTRY_SIZE],
+        bytes: [u8; DIRECTORY_ENTRY_SIZE],
 
         is_last_entry: bool,
         entry_number: u8,
@@ -214,7 +214,7 @@ mod tests {
         fn valid() -> Self {
             Self {
                 #[rustfmt::skip]
-                data: [
+                bytes: [
                     // Order byte
                     0x41,
 

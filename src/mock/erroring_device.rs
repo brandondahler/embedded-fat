@@ -10,6 +10,7 @@ impl Device for ErroringDevice {
     type Error = IoError;
 }
 
+#[cfg(feature = "sync")]
 impl SyncDevice for ErroringDevice {
     fn with_stream<F, R>(&self, f: F) -> Result<R, Self::Error>
     where
@@ -25,6 +26,7 @@ impl SyncFlushableDevice for ErroringDevice {
     }
 }
 
+#[cfg(feature = "async")]
 impl AsyncDevice for ErroringDevice {
     async fn with_stream<F, R>(&self, f: F) -> Result<R, Self::Error>
     where

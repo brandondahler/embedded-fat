@@ -809,7 +809,7 @@ pub fn fold_character(character: u16) -> u16 {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
 
     static PARSED_LOOKUP: [(u16, u16); 1205] = [
@@ -2032,7 +2032,7 @@ mod tests {
         }
     }
 
-    fn unoptimized_fold_character(character: u16) -> u16 {
+    pub fn unoptimized_fold_character(character: u16) -> u16 {
         match PARSED_LOOKUP.binary_search_by_key(&character, |&(key, _)| key) {
             Ok(index) => PARSED_LOOKUP[index].1,
             Err(_) => character,

@@ -1,7 +1,12 @@
 use crate::Device;
 use bitflags::bitflags;
 use core::fmt::Display;
-use embedded_io::{ErrorType, Read, Seek, SeekFrom, Write};
+use embedded_io::{ErrorType, SeekFrom};
+
+#[cfg(feature = "sync")]
+use embedded_io::{Read, Seek, Write};
+
+#[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
 bitflags! {

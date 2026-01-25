@@ -89,13 +89,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ShortNameDirectoryEntryError;
+    use crate::file_name::ShortFileNameError;
+    use crate::mock::IoError;
     use alloc::string::ToString;
 
     mod display {
         use super::*;
-        use crate::ShortNameDirectoryEntryError;
-        use crate::file_name::ShortFileNameError;
-        use crate::mock::IoError;
 
         #[test]
         fn produces_non_empty_value() {

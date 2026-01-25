@@ -1,4 +1,4 @@
-use crate::device::SyncDevice;
+use crate::Device;
 use crate::directory_entry::{
     DirectoryEntry, DirectoryEntryIterator, FreeDirectoryEntry, LONG_NAME_CHARACTERS_PER_ENTRY,
 };
@@ -6,9 +6,19 @@ use crate::directory_item::{
     DIRECTORY_ENTITY_LONG_NAME_MAX_LENGTH, DeviceDirectoryItemIterationError, DirectoryItem,
     DirectoryItemBuilder, DirectoryItemError,
 };
-use crate::{AsyncDevice, Device};
-use embedded_io::{Read, Seek};
-use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
+use embedded_io::{ErrorType, SeekFrom};
+
+#[cfg(feature = "sync")]
+use {
+    crate::SyncDevice,
+    embedded_io::{Read, Seek},
+};
+
+#[cfg(feature = "async")]
+use {
+    crate::AsyncDevice,
+    embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek},
+};
 
 const MAX_ENTRY_COUNT: usize =
     DIRECTORY_ENTITY_LONG_NAME_MAX_LENGTH.div_ceil(LONG_NAME_CHARACTERS_PER_ENTRY) + 1;
@@ -34,6 +44,7 @@ where
     }
 }
 
+#[cfg(feature = "sync")]
 impl<D, S> DirectoryItemIterator<'_, D>
 where
     D: SyncDevice<Stream = S>,
@@ -96,6 +107,7 @@ where
     }
 }
 
+#[cfg(feature = "async")]
 impl<D, S> DirectoryItemIterator<'_, D>
 where
     D: AsyncDevice<Stream = S>,

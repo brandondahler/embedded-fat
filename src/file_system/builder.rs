@@ -1,11 +1,20 @@
-use crate::device::SyncDevice;
 use crate::directory_item::DeviceDirectoryItemIterationError;
 use crate::{
-    AsciiOnlyEncoder, AsyncDevice, CodePageEncoder, Device, FileSystem, FileSystemError,
-    SingleAccessDevice,
+    AsciiOnlyEncoder, CodePageEncoder, Device, FileSystem, FileSystemError, SingleAccessDevice,
 };
-use embedded_io::{ErrorType, Read, Seek};
-use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
+use embedded_io::{ErrorType, SeekFrom};
+
+#[cfg(feature = "sync")]
+use {
+    crate::SyncDevice,
+    embedded_io::{Read, Seek},
+};
+
+#[cfg(feature = "async")]
+use {
+    crate::AsyncDevice,
+    embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek},
+};
 
 type FileSystemBuilderResult<D, CPE, IDE> = Result<
     FileSystem<D, CPE, IDE>,
@@ -90,6 +99,7 @@ where
     }
 }
 
+#[cfg(feature = "sync")]
 impl<D, S, CPE, IDE> FileSystemBuilder<D, CPE, IDE>
 where
     D: SyncDevice<Stream = S>,
@@ -106,6 +116,7 @@ where
     }
 }
 
+#[cfg(feature = "async")]
 impl<D, S, CPE, IDE> FileSystemBuilder<D, CPE, IDE>
 where
     D: AsyncDevice<Stream = S>,

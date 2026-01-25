@@ -251,6 +251,7 @@ mod tests {
             assert_eq!(name_2, name_1, "Values should be equal");
         }
 
+        #[cfg(feature = "unicode-case-folding")]
         #[test]
         fn different_case_simple_folding_returns_true() {
             // Both values are folded to ß when using the simple case folding mapping

@@ -8,10 +8,9 @@ pub use entry_iterator::*;
 pub use file::*;
 pub use table::*;
 
-use crate::device::{Device, SyncDevice};
+use crate::Device;
 use crate::directory_entry::DirectoryEntryIterator;
 use crate::directory_item::DirectoryItemIterator;
-use embedded_io::{ErrorType, Read, Seek};
 
 #[derive(Clone, Debug)]
 pub enum Directory<'a, D>

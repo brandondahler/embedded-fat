@@ -2,12 +2,23 @@ mod error;
 
 pub use error::*;
 
-use crate::device::{AsyncDevice, AsyncFlushableDevice, Device, SyncDevice, SyncFlushableDevice};
+use crate::device::Device;
 use core::cell::RefCell;
 use core::fmt::Display;
 use core::ops::{Deref, DerefMut};
-use embedded_io::{ErrorType, Read, Seek, Write};
-use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
+use embedded_io::ErrorType;
+
+#[cfg(feature = "sync")]
+use {
+    crate::{SyncDevice, SyncFlushableDevice},
+    embedded_io::{Read, Seek, Write},
+};
+
+#[cfg(feature = "async")]
+use {
+    crate::{AsyncDevice, AsyncFlushableDevice},
+    embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite},
+};
 
 #[derive(Clone, Debug)]
 pub struct SingleAccessDevice<S>
@@ -45,6 +56,7 @@ where
     type Error = SingleAccessDeviceError<S::Error>;
 }
 
+#[cfg(feature = "sync")]
 impl<S> SyncDevice for SingleAccessDevice<S>
 where
     S: ErrorType,
@@ -59,6 +71,7 @@ where
     }
 }
 
+#[cfg(feature = "sync")]
 impl<S> SyncFlushableDevice for SingleAccessDevice<S>
 where
     S: Write,
@@ -70,6 +83,7 @@ where
     }
 }
 
+#[cfg(feature = "async")]
 impl<S> AsyncDevice for SingleAccessDevice<S>
 where
     S: ErrorType,
@@ -85,6 +99,7 @@ where
     }
 }
 
+#[cfg(feature = "async")]
 impl<S> AsyncFlushableDevice for SingleAccessDevice<S>
 where
     S: AsyncWrite,

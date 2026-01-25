@@ -8,7 +8,7 @@ extern crate alloc;
 mod utils;
 
 mod allocation_table;
-mod bios_parameter_block;
+mod boot_sector;
 mod device;
 mod directory;
 mod directory_entry;
@@ -22,11 +22,8 @@ mod file_system;
 mod mock;
 
 pub use allocation_table::AllocationTableKind;
-pub use bios_parameter_block::BiosParameterBlockError;
-pub use device::{
-    AsyncDevice, AsyncFlushableDevice, Device, SingleAccessDevice, SingleAccessDeviceError,
-    SyncFlushableDevice,
-};
+pub use boot_sector::BiosParameterBlockError;
+pub use device::{Device, SingleAccessDevice, SingleAccessDeviceError};
 pub use directory_entry::{
     DirectoryEntryError, LongNameDirectoryEntryError, ShortNameDirectoryEntryError,
 };
@@ -34,3 +31,9 @@ pub use directory_item::{DirectoryItemError, DirectoryItemIterationError};
 pub use encoding::{AsciiOnlyEncoder, CodePageEncoder};
 pub use file::{File, FileError};
 pub use file_system::{FileSystem, FileSystemBuilder, FileSystemError};
+
+#[cfg(feature = "sync")]
+pub use device::{SyncDevice, SyncFlushableDevice};
+
+#[cfg(feature = "async")]
+pub use device::{AsyncDevice, AsyncFlushableDevice};

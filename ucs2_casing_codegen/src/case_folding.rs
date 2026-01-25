@@ -185,7 +185,7 @@ impl Display for CaseFolding {
         writeln!(f)?;
 
         writeln!(f, "#[cfg(test)]")?;
-        writeln!(f, "mod tests {{")?;
+        writeln!(f, "pub mod tests {{")?;
         writeln!(f, "    use super::*;")?;
         writeln!(f)?;
         writeln!(
@@ -216,7 +216,7 @@ impl Display for CaseFolding {
         writeln!(f)?;
         writeln!(
             f,
-            "    fn unoptimized_fold_character(character: u16) -> u16 {{"
+            "    pub fn unoptimized_fold_character(character: u16) -> u16 {{"
         )?;
         writeln!(
             f,

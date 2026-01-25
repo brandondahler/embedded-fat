@@ -20,10 +20,10 @@ pub struct ShortNameDirectoryEntry {
 
 impl ShortNameDirectoryEntry {
     pub fn from_bytes(
-        data: &[u8; DIRECTORY_ENTRY_SIZE],
+        bytes: &[u8; DIRECTORY_ENTRY_SIZE],
     ) -> Result<Self, ShortNameDirectoryEntryError> {
         let mut name_bytes = [0; SHORT_NAME_CHARACTER_COUNT];
-        name_bytes.copy_from_slice(&data[0..SHORT_NAME_CHARACTER_COUNT]);
+        name_bytes.copy_from_slice(&bytes[0..SHORT_NAME_CHARACTER_COUNT]);
 
         if name_bytes[0] == 0x05 {
             name_bytes[0] = 0xE5;
@@ -31,11 +31,11 @@ impl ShortNameDirectoryEntry {
 
         Ok(Self {
             name: ShortFileName::new(name_bytes)?,
-            attributes: DirectoryEntryAttributes::from_bits_retain(data[11]),
+            attributes: DirectoryEntryAttributes::from_bits_retain(bytes[11]),
 
-            first_cluster_number: (read_le_u16(data, 20) as u32) << 16
-                | read_le_u16(data, 26) as u32,
-            file_size: read_le_u32(data, 28),
+            first_cluster_number: (read_le_u16(bytes, 20) as u32) << 16
+                | read_le_u16(bytes, 26) as u32,
+            file_size: read_le_u32(bytes, 28),
         })
     }
 

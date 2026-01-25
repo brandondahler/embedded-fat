@@ -5,14 +5,25 @@ pub use builder::*;
 use core::error::Error;
 pub use error::*;
 
+use crate::Device;
 use crate::allocation_table::AllocationTable;
-use crate::bios_parameter_block::BiosParameterBlock;
-use crate::device::{AsyncDevice, Device, SyncDevice};
+use crate::boot_sector::BiosParameterBlock;
 use crate::directory::{Directory, DirectoryFile, DirectoryTable};
 use crate::directory_item::{DeviceDirectoryItemIterationError, DirectoryItem};
 use crate::{AllocationTableKind, CodePageEncoder, File};
-use embedded_io::{ErrorType, Read, Seek, SeekFrom, Write};
-use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
+use embedded_io::{ErrorType, SeekFrom};
+
+#[cfg(feature = "sync")]
+use {
+    crate::SyncDevice,
+    embedded_io::{Read, Seek, Write},
+};
+
+#[cfg(feature = "async")]
+use {
+    crate::AsyncDevice,
+    embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite},
+};
 
 #[derive(Clone, Debug)]
 pub struct FileSystem<D, CPE, IDE>
@@ -109,6 +120,7 @@ where
     }
 }
 
+#[cfg(feature = "sync")]
 impl<D, S, CPE, IDE> FileSystem<D, CPE, IDE>
 where
     D: SyncDevice<Stream = S>,
@@ -137,7 +149,7 @@ where
 
         Self::validate_boot_sector_signature(&boot_sector_bytes)?;
 
-        let bios_parameter_block = BiosParameterBlock::new(&boot_sector_bytes)?;
+        let bios_parameter_block = BiosParameterBlock::from_boot_sector(&boot_sector_bytes)?;
         let allocation_table = AllocationTable::new(
             bios_parameter_block.allocation_table_kind(),
             bios_parameter_block.allocation_table_base_address(),
@@ -188,6 +200,8 @@ where
         }
     }
 }
+
+#[cfg(feature = "async")]
 impl<D, S, CPE, IDE> FileSystem<D, CPE, IDE>
 where
     D: AsyncDevice<Stream = S>,
@@ -217,7 +231,7 @@ where
 
         Self::validate_boot_sector_signature(&boot_sector_bytes)?;
 
-        let bios_parameter_block = BiosParameterBlock::new(&boot_sector_bytes)?;
+        let bios_parameter_block = BiosParameterBlock::from_boot_sector(&boot_sector_bytes)?;
         let allocation_table = AllocationTable::new(
             bios_parameter_block.allocation_table_kind(),
             bios_parameter_block.allocation_table_base_address(),

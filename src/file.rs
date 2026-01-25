@@ -2,12 +2,23 @@ mod error;
 
 pub use error::*;
 
+use crate::Device;
 use crate::allocation_table::{AllocationTable, AllocationTableEntry};
-use crate::device::{AsyncDevice, AsyncFlushableDevice, Device, SyncDevice, SyncFlushableDevice};
 use core::cmp::min;
 use core::ops::DerefMut;
-use embedded_io::{ErrorType, Read, Seek, SeekFrom, Write};
-use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
+use embedded_io::{ErrorType, SeekFrom};
+
+#[cfg(feature = "sync")]
+use {
+    crate::{SyncDevice, SyncFlushableDevice},
+    embedded_io::{Read, Seek, Write},
+};
+
+#[cfg(feature = "async")]
+use {
+    crate::{AsyncDevice, AsyncFlushableDevice},
+    embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite},
+};
 
 #[derive(Clone, Debug)]
 pub struct File<'a, D>
@@ -106,6 +117,7 @@ where
     type Error = FileError<D::Error, <D::Stream as ErrorType>::Error>;
 }
 
+#[cfg(feature = "sync")]
 impl<D, S> Read for File<'_, D>
 where
     D: SyncDevice<Stream = S>,
@@ -134,6 +146,7 @@ where
     }
 }
 
+#[cfg(feature = "async")]
 impl<D, S> AsyncRead for File<'_, D>
 where
     D: AsyncDevice<Stream = S>,
@@ -165,6 +178,7 @@ where
     }
 }
 
+#[cfg(feature = "sync")]
 impl<D, S> Seek for File<'_, D>
 where
     D: SyncDevice<Stream = S>,
@@ -200,7 +214,9 @@ where
                             .read_entry(stream, new_cluster_number)?
                         {
                             AllocationTableEntry::NextClusterNumber(next_cluster_number) => {
-                                new_cluster_number = next_cluster_number;
+                                new_cluster_number = next_cluster_number
+                                    .value(self.allocation_table.kind())
+                                    .unwrap();
                                 new_cluster_offset -= self.bytes_per_cluster as i64;
                             }
                             AllocationTableEntry::EndOfFile => break,
@@ -228,6 +244,7 @@ where
     }
 }
 
+#[cfg(feature = "async")]
 impl<D, S> AsyncSeek for File<'_, D>
 where
     D: AsyncDevice<Stream = S>,
@@ -264,7 +281,9 @@ where
                             .await?
                         {
                             AllocationTableEntry::NextClusterNumber(next_cluster_number) => {
-                                new_cluster_number = next_cluster_number;
+                                new_cluster_number = next_cluster_number
+                                    .value(self.allocation_table.kind())
+                                    .unwrap();
                                 new_cluster_offset -= self.bytes_per_cluster as i64;
                             }
                             AllocationTableEntry::EndOfFile => break,
@@ -293,6 +312,7 @@ where
     }
 }
 
+#[cfg(feature = "sync")]
 impl<D, S> Write for File<'_, D>
 where
     D: SyncFlushableDevice<Stream = S>,
@@ -307,6 +327,7 @@ where
     }
 }
 
+#[cfg(feature = "async")]
 impl<D, S> AsyncWrite for File<'_, D>
 where
     D: AsyncFlushableDevice<Stream = S>,

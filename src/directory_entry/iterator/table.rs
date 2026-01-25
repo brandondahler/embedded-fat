@@ -1,10 +1,21 @@
-use crate::device::{AsyncDevice, Device, SyncDevice};
+use crate::Device;
 use crate::directory_entry::{
     DIRECTORY_ENTRY_SIZE, DirectoryEntry, DirectoryEntryIterationError,
     DirectoryEntryIteratorResult,
 };
-use embedded_io::{ErrorType, Read, Seek, SeekFrom};
-use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
+use embedded_io::{ErrorType, SeekFrom};
+
+#[cfg(feature = "sync")]
+use {
+    crate::SyncDevice,
+    embedded_io::{Read, Seek},
+};
+
+#[cfg(feature = "async")]
+use {
+    crate::AsyncDevice,
+    embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek},
+};
 
 #[derive(Clone, Debug)]
 pub struct DirectoryTableEntryIterator<'a, D>
@@ -56,6 +67,7 @@ where
     }
 }
 
+#[cfg(feature = "sync")]
 impl<D, S> DirectoryTableEntryIterator<'_, D>
 where
     D: SyncDevice<Stream = S>,
@@ -92,6 +104,7 @@ where
     }
 }
 
+#[cfg(feature = "async")]
 impl<D, S> DirectoryTableEntryIterator<'_, D>
 where
     D: AsyncDevice<Stream = S>,
@@ -302,7 +315,7 @@ mod tests {
 
         #[test]
         fn stream_end_reached_error_propagated() {
-            let device = SingleAccessDevice::new(DataStream::from_data([]));
+            let device = SingleAccessDevice::new(DataStream::from_bytes([]));
 
             let iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -337,7 +350,7 @@ mod tests {
             let mut data = [0; DIRECTORY_ENTRY_SIZE];
             data[0] = 0x20;
 
-            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let device = SingleAccessDevice::new(DataStream::from_bytes(data));
 
             let iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -452,7 +465,7 @@ mod tests {
 
         #[test]
         fn stream_end_reached_error_propagated() {
-            let device = SingleAccessDevice::new(DataStream::from_data([]));
+            let device = SingleAccessDevice::new(DataStream::from_bytes([]));
 
             let mut iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -487,7 +500,7 @@ mod tests {
             let mut data = [0; DIRECTORY_ENTRY_SIZE];
             data[0] = 0x20;
 
-            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let device = SingleAccessDevice::new(DataStream::from_bytes(data));
 
             let mut iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -640,7 +653,7 @@ mod tests {
 
         #[tokio::test]
         async fn stream_end_reached_error_propagated() {
-            let device = SingleAccessDevice::new(DataStream::from_data([]));
+            let device = SingleAccessDevice::new(DataStream::from_bytes([]));
 
             let iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -677,7 +690,7 @@ mod tests {
             let mut data = [0; DIRECTORY_ENTRY_SIZE];
             data[0] = 0x20;
 
-            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let device = SingleAccessDevice::new(DataStream::from_bytes(data));
 
             let iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -797,7 +810,7 @@ mod tests {
 
         #[tokio::test]
         async fn stream_end_reached_error_propagated() {
-            let device = SingleAccessDevice::new(DataStream::from_data([]));
+            let device = SingleAccessDevice::new(DataStream::from_bytes([]));
 
             let mut iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -834,7 +847,7 @@ mod tests {
             let mut data = [0; DIRECTORY_ENTRY_SIZE];
             data[0] = 0x20;
 
-            let device = SingleAccessDevice::new(DataStream::from_data(data));
+            let device = SingleAccessDevice::new(DataStream::from_bytes(data));
 
             let mut iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -871,7 +884,7 @@ mod tests {
             }
 
             Self {
-                device: DataStream::from_data(data).into(),
+                device: DataStream::from_bytes(data).into(),
                 entry_count: entry_count as u16,
             }
         }

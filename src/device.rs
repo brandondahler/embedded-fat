@@ -5,7 +5,12 @@ pub use single_access::*;
 
 use core::fmt::Debug;
 use core::ops::DerefMut;
-use embedded_io::{ErrorType, Read, Seek, Write};
+use embedded_io::ErrorType;
+
+#[cfg(feature = "sync")]
+use embedded_io::{Read, Seek};
+
+#[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
 pub trait Device {
@@ -21,6 +26,7 @@ pub trait Device {
 /// a single management action or open `File` at any given time.  Conversely, if the `Device`
 /// supports multiple streams, multiple actions may be performed and/or multiple `File`s may be
 /// opened.
+#[cfg(feature = "sync")]
 pub trait SyncDevice: Device {
     /// Runs the provided operation with a `Stream` reference that gives access to the underlying
     /// bytes of the `FileSystem`.
@@ -29,6 +35,7 @@ pub trait SyncDevice: Device {
         F: FnOnce(&mut Self::Stream) -> R;
 }
 
+#[cfg(feature = "sync")]
 pub trait SyncFlushableDevice: SyncDevice {
     fn flush(&self) -> Result<(), Self::Error>;
 }
@@ -42,6 +49,7 @@ pub trait SyncFlushableDevice: SyncDevice {
 /// either a single management action or open `File` at any given time.  Conversely, if the
 /// `AsyncDevice` supports multiple streams, multiple actions may be performed and/or multiple
 /// `File`s may be opened.
+#[cfg(feature = "async")]
 pub trait AsyncDevice: Device {
     /// Runs the provided operation with a `Stream` reference that gives access to the underlying
     /// bytes of the `FileSystem`.
@@ -50,6 +58,7 @@ pub trait AsyncDevice: Device {
         F: AsyncFnOnce(&mut Self::Stream) -> R;
 }
 
-pub trait AsyncFlushableDevice: SyncDevice {
+#[cfg(feature = "async")]
+pub trait AsyncFlushableDevice: AsyncDevice {
     fn flush(&self) -> impl Future<Output = Result<(), Self::Error>>;
 }

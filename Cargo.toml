@@ -4,16 +4,24 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["async"]
+default = ["async", "sync", "unicode-case-folding"]
+
 async = ["embedded-io-async"]
-std = ["embedded-io/std", "embedded-io-async/std"]
+sync = []
+unicode-case-folding = []
 
 [dependencies]
 bitflags = "2"
 embedded-io = "0.7"
 embedded-io-async = { version = "0.7", optional = true }
-clap = { version = "4.5.54", features = ["derive"] }
 
 [dev-dependencies]
+criterion = "0.8"
+embedded-io = { version = "0.7", features = ["std"] }
+embedded-io-async = { version = "0.7", features = ["std"] }
 strum = { version = "0.27", features = ["derive"] }
 tokio = { version = "1", features = ["macros", "rt"] }
+
+[[bench]]
+name = "ucs2_character_case_folding"
+harness = false

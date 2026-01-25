@@ -27,6 +27,10 @@ tasks {
         commandLine("cargo", "fmt", "--check")
     }
 
+    val cargoClean by registering(Exec::class) {
+        commandLine("cargo", "clean")
+    }
+
     val compile by registering {
         dependsOn(cargoBuild)
     }
@@ -60,5 +64,9 @@ tasks {
 
     register("build") {
         dependsOn(check, compile)
+    }
+
+    register("clean") {
+        dependsOn(cargoClean)
     }
 }

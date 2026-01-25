@@ -12,7 +12,10 @@ pub use iterator::*;
 pub use long_name::*;
 pub use short_name::*;
 
+#[cfg(feature = "sync")]
 use embedded_io::{Seek, Write};
+
+#[cfg(feature = "async")]
 use embedded_io_async::{Seek as AsyncSeek, Write as AsyncWrite};
 
 pub const DIRECTORY_ENTRY_SIZE: usize = 32;
