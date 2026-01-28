@@ -22,11 +22,11 @@ use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 #[derive(Clone, Debug)]
 pub struct AllocationTable {
     kind: AllocationTableKind,
-    base_address: u32,
+    base_address: u64,
 }
 
 impl AllocationTable {
-    pub fn new(kind: AllocationTableKind, base_address: u32) -> Self {
+    pub fn new(kind: AllocationTableKind, base_address: u64) -> Self {
         Self { kind, base_address }
     }
 
@@ -46,7 +46,7 @@ impl AllocationTable {
         let mut entry_value_bytes = [0u8; 4];
         let entry_address = self.resolve_entry_address(cluster_number);
 
-        stream.seek(SeekFrom::Start(entry_address.address as u64))?;
+        stream.seek(SeekFrom::Start(entry_address.address))?;
 
         match self.kind {
             AllocationTableKind::Fat12 | AllocationTableKind::Fat16 => {
@@ -77,9 +77,7 @@ impl AllocationTable {
         let mut entry_value_bytes = [0u8; 4];
         let entry_address = self.resolve_entry_address(cluster_number);
 
-        stream
-            .seek(SeekFrom::Start(entry_address.address as u64))
-            .await?;
+        stream.seek(SeekFrom::Start(entry_address.address)).await?;
 
         match self.kind {
             AllocationTableKind::Fat12 | AllocationTableKind::Fat16 => {
@@ -106,7 +104,7 @@ impl AllocationTable {
         };
 
         AllocationTableEntryOffset {
-            address: self.base_address + address_offset,
+            address: self.base_address + address_offset as u64,
             is_nibble_offset: matches!(self.kind, AllocationTableKind::Fat12)
                 && cluster_number % 2 == 1,
         }
@@ -114,7 +112,7 @@ impl AllocationTable {
 }
 
 struct AllocationTableEntryOffset {
-    pub address: u32,
+    pub address: u64,
     pub is_nibble_offset: bool,
 }
 

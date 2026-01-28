@@ -8,7 +8,7 @@ where
 {
     device: &'a D,
 
-    start_address: u32,
+    start_address: u64,
     entry_count: u16,
 }
 
@@ -16,7 +16,7 @@ impl<'a, D> DirectoryTable<'a, D>
 where
     D: Device,
 {
-    pub fn new(device: &'a D, start_address: u32, entry_count: u16) -> Self {
+    pub fn new(device: &'a D, start_address: u64, entry_count: u16) -> Self {
         Self {
             device,
 

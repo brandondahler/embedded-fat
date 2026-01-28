@@ -1,4 +1,6 @@
 import de.undercouch.gradle.tasks.download.Download;
+import java.time.Duration;
+import java.time.Instant;
 
 plugins {
     id("de.undercouch.download") version "[5.6.0, 6)"
@@ -50,10 +52,13 @@ tasks {
         )
 
         doFirst {
+            val yesterday = Instant.now().minus(Duration.ofDays(1))
+            val shouldOverwrite = caseFoldingFileLocation.lastModified() < yesterday.toEpochMilli()
+
             download.run {
                 src("https://www.unicode.org/Public/UCD/latest/ucd/CaseFolding.txt")
                 dest(caseFoldingFileLocation)
-                overwrite(false)
+                overwrite(shouldOverwrite)
             }
         }
     }

@@ -10,7 +10,7 @@ where
     device: &'a D,
     allocation_table: &'a AllocationTable,
 
-    data_region_base_address: u32,
+    data_region_base_address: u64,
     bytes_per_cluster: u32,
 
     start_cluster_number: u32,
@@ -23,7 +23,7 @@ where
     pub fn new(
         device: &'a D,
         allocation_table: &'a AllocationTable,
-        data_region_base_address: u32,
+        data_region_base_address: u64,
         bytes_per_cluster: u32,
         start_cluster_number: u32,
     ) -> Self {

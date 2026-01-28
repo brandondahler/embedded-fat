@@ -27,7 +27,7 @@ where
     device: &'a D,
     allocation_table: &'a AllocationTable,
 
-    data_region_base_address: u32,
+    data_region_base_address: u64,
     bytes_per_cluster: u32,
 
     current_cluster_number: u32,
@@ -41,7 +41,7 @@ where
     pub fn new(
         device: &'a D,
         allocation_table: &'a AllocationTable,
-        data_region_base_address: u32,
+        data_region_base_address: u64,
         bytes_per_cluster: u32,
         start_cluster_number: u32,
     ) -> Self {
@@ -57,10 +57,10 @@ where
         }
     }
 
-    fn current_address(&self) -> u32 {
+    fn current_address(&self) -> u64 {
         self.data_region_base_address
-            + ((self.current_cluster_number - 2) * self.bytes_per_cluster)
-            + self.current_cluster_offset
+            + ((self.current_cluster_number - 2) as u64 * self.bytes_per_cluster as u64)
+            + self.current_cluster_offset as u64
     }
 
     fn advance_offset(&mut self) {
@@ -108,7 +108,7 @@ where
         propagate_device_iteration_errors!(
             self.device
                 .with_stream(|stream| -> DirectoryEntryIteratorResult<(), D> {
-                    stream.seek(SeekFrom::Start(current_address as u64))?;
+                    stream.seek(SeekFrom::Start(current_address))?;
                     stream.read_exact(&mut directory_entry_bytes)?;
 
                     Ok(())
@@ -167,7 +167,7 @@ where
         propagate_device_iteration_errors!(
             self.device
                 .with_stream(async |stream| -> DirectoryEntryIteratorResult<(), D> {
-                    stream.seek(SeekFrom::Start(current_address as u64)).await?;
+                    stream.seek(SeekFrom::Start(current_address)).await?;
 
                     stream.read_exact(&mut directory_entry_bytes).await?;
 
@@ -1644,7 +1644,7 @@ mod tests {
         device: TestInstanceDevice,
         allocation_table: AllocationTable,
 
-        data_region_base_address: u32,
+        data_region_base_address: u64,
         bytes_per_cluster: u32,
     }
 
@@ -1688,7 +1688,7 @@ mod tests {
                 device: DataStream::from_bytes(data).into(),
                 allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0),
 
-                data_region_base_address: data_region_base_address as u32,
+                data_region_base_address: data_region_base_address as u64,
                 bytes_per_cluster: (entries_per_cluster * DIRECTORY_ENTRY_SIZE) as u32,
             }
         }

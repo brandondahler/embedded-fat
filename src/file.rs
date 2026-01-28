@@ -28,7 +28,7 @@ where
     device: &'a D,
     allocation_table: &'a AllocationTable,
 
-    data_region_base_address: u32,
+    data_region_base_address: u64,
     bytes_per_cluster: u32,
 
     first_cluster_number: u32,
@@ -47,7 +47,7 @@ where
     pub fn new(
         device: &'a D,
         allocation_table: &'a AllocationTable,
-        data_region_base_address: u32,
+        data_region_base_address: u64,
         bytes_per_cluster: u32,
         first_cluster_number: u32,
         file_size: u32,
@@ -69,10 +69,10 @@ where
         }
     }
 
-    fn current_address(&self) -> u32 {
+    fn current_address(&self) -> u64 {
         self.data_region_base_address
-            + ((self.current_cluster_number - 2) * self.bytes_per_cluster)
-            + self.current_cluster_offset
+            + ((self.current_cluster_number - 2) as u64 * self.bytes_per_cluster as u64)
+            + self.current_cluster_offset as u64
     }
 
     fn resolve_max_read_size(&self, target_buffer_length: usize) -> usize {
@@ -134,7 +134,7 @@ where
         let actual_read_size = self
             .device
             .with_stream(|stream| -> Result<usize, Self::Error> {
-                stream.seek(SeekFrom::Start(self.current_address() as u64))?;
+                stream.seek(SeekFrom::Start(self.current_address()))?;
 
                 Ok(stream.read(&mut buf[0..target_read_size])?)
             })
@@ -162,9 +162,7 @@ where
         let actual_read_size = self
             .device
             .with_stream(async |stream| -> Result<usize, Self::Error> {
-                stream
-                    .seek(SeekFrom::Start(self.current_address() as u64))
-                    .await?;
+                stream.seek(SeekFrom::Start(self.current_address())).await?;
 
                 Ok(stream.read(&mut buf[0..target_read_size]).await?)
             })

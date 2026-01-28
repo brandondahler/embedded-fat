@@ -4,15 +4,19 @@ use core::fmt::{Display, Formatter};
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(strum::EnumIter))]
 pub enum BiosParameterBlockError {
-    InvalidBytesPerSector,
-    InvalidSectorsPerCluster,
-    InvalidReservedSectorCount,
-    InvalidFatCount,
-    InvalidRootDirectoryEntryCount,
-    InvalidMediaType,
-    InvalidTotalSectorCount16Bit,
-    InvalidFatSectorCount16Bit,
-    InvalidTotalSectorCount32Bit,
+    BytesPerSectorInvalid,
+    FatCountInvalid,
+    FilesystemVersionUnsupported,
+    FsInfoSectorNumberInvalid,
+    MediaTypeInvalid,
+    ReservedSectorCountInvalid,
+    RootDirectoryEntryCountInvalid,
+    RootDirectoryFileClusterNumberInvalid,
+    SectorsPerClusterInvalid,
+    SectorsPerFat16BitInvalid,
+    SectorsPerFatNotSet,
+    TotalSectorCount16BitInvalid,
+    TotalSectorCountNotSet,
 }
 
 impl Error for BiosParameterBlockError {}
@@ -20,26 +24,45 @@ impl Error for BiosParameterBlockError {}
 impl Display for BiosParameterBlockError {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
-            BiosParameterBlockError::InvalidBytesPerSector => write!(f, "Invalid bytes per sector"),
-            BiosParameterBlockError::InvalidSectorsPerCluster => {
-                write!(f, "Invalid Sectors per cluster")
+            BiosParameterBlockError::BytesPerSectorInvalid => {
+                write!(f, "BPB_BytsPerSec must be one of the allowed values")
             }
-            BiosParameterBlockError::InvalidReservedSectorCount => {
-                write!(f, "Invalid reserved sector count")
+            BiosParameterBlockError::FatCountInvalid => write!(f, "BPB_NumFATs must not be zero"),
+            BiosParameterBlockError::FilesystemVersionUnsupported => {
+                write!(f, "BPB_FSVer must be 0:0")
             }
-            BiosParameterBlockError::InvalidFatCount => write!(f, "Invalid FAT count"),
-            BiosParameterBlockError::InvalidRootDirectoryEntryCount => {
-                write!(f, "Invalid root directory entry count")
+            BiosParameterBlockError::FsInfoSectorNumberInvalid => {
+                write!(f, "BPB_FSInfo must be greater than 0")
             }
-            BiosParameterBlockError::InvalidMediaType => write!(f, "Invalid media type"),
-            BiosParameterBlockError::InvalidTotalSectorCount16Bit => {
-                write!(f, "Invalid total sector count16")
+            BiosParameterBlockError::MediaTypeInvalid => {
+                write!(f, "BPB_Media must be one of the allowed values")
             }
-            BiosParameterBlockError::InvalidFatSectorCount16Bit => {
-                write!(f, "Invalid total sector count16")
+            BiosParameterBlockError::ReservedSectorCountInvalid => {
+                write!(f, "BPB_RsvdSecCnt must not be zero")
             }
-            BiosParameterBlockError::InvalidTotalSectorCount32Bit => {
-                write!(f, "Invalid total sector count32")
+            BiosParameterBlockError::RootDirectoryEntryCountInvalid => {
+                write!(
+                    f,
+                    "BPB_RootEntCnt must be zero for FAT32 volumes and non-zero for FAT12 or FAT16 volumes"
+                )
+            }
+            BiosParameterBlockError::RootDirectoryFileClusterNumberInvalid => {
+                write!(f, "BPB_RootClus must be greater than 1")
+            }
+            BiosParameterBlockError::SectorsPerClusterInvalid => {
+                write!(f, "BPB_SecPerClus must be a positive power of 2")
+            }
+            BiosParameterBlockError::SectorsPerFat16BitInvalid => {
+                write!(f, "BPB_FATSz16 must be zero for FAT32 volumes")
+            }
+            BiosParameterBlockError::SectorsPerFatNotSet => {
+                write!(f, "Either BPB_FATSz16 or BPB_FATSz32 must be non-zero")
+            }
+            BiosParameterBlockError::TotalSectorCount16BitInvalid => {
+                write!(f, "BPB_TotSec16 must be zero for FAT32 volumes")
+            }
+            BiosParameterBlockError::TotalSectorCountNotSet => {
+                write!(f, "Either BPB_TotSec16 or BPB_TotSec32 must be non-zero")
             }
         }
     }

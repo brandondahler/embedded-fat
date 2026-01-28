@@ -1,11 +1,20 @@
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 
+// NOTE: This is only possible because this module is designed to be standalone
 #[path = "../src/encoding/ucs2_character/case_folding.rs"]
 mod ucs2_character_case_folding;
 
 use ucs2_character_case_folding::fold_character;
 use ucs2_character_case_folding::tests::unoptimized_fold_character;
 
+// 2026-01-27:
+//   Results showed there is a meaningful difference between the possible cases. For ASCII, the
+//   optimized solution is ~6x faster due to its special case handling.  For range hits, the
+//   optimized solution is at least ~2x faster.  For range misses and all lookups, the optimized
+//   solution is ~20% slower.
+//
+//   Review of the generated ASM shows that the optimized implementation saves ~1.5KB in code size
+//   primarily by shrinking the lookup table.
 fn criterion_benchmark(c: &mut Criterion) {
     let characters = [
         ('a', "ASCII lowercase, special case hit"),
@@ -30,12 +39,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("Optimized", &full_description),
             &character_code,
-            |b, input| b.iter(|| fold_character(*input)),
+            |b, &input| b.iter(|| fold_character(input)),
         );
         group.bench_with_input(
             BenchmarkId::new("Unoptimized", &full_description),
             &character_code,
-            |b, input| b.iter(|| unoptimized_fold_character(*input)),
+            |b, &input| b.iter(|| unoptimized_fold_character(input)),
         );
     }
     group.finish();

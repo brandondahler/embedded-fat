@@ -327,7 +327,7 @@ mod tests {
         device: TestInstanceDevice,
         allocation_table: AllocationTable,
 
-        data_region_base_address: u32,
+        data_region_base_address: u64,
         entry_count: u16,
     }
 

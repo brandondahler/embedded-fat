@@ -24,7 +24,7 @@ where
 {
     device: &'a D,
 
-    start_address: u32,
+    start_address: u64,
     entry_count: u16,
 
     current_entry_index: Option<u16>,
@@ -34,7 +34,7 @@ impl<'a, D> DirectoryTableEntryIterator<'a, D>
 where
     D: Device,
 {
-    pub fn new(device: &'a D, start_address: u32, entry_count: u16) -> Self {
+    pub fn new(device: &'a D, start_address: u64, entry_count: u16) -> Self {
         Self {
             device,
 
@@ -60,9 +60,9 @@ where
         self.current_entry_index.is_some()
     }
 
-    fn current_address(&self) -> Option<u32> {
+    fn current_address(&self) -> Option<u64> {
         self.current_entry_index.map(|current_entry_index| {
-            self.start_address + (current_entry_index as u32 * DIRECTORY_ENTRY_SIZE as u32)
+            self.start_address + (current_entry_index as u64 * DIRECTORY_ENTRY_SIZE as u64)
         })
     }
 }
@@ -80,7 +80,7 @@ where
         propagate_device_iteration_errors!(
             self.device
                 .with_stream(|stream| -> DirectoryEntryIteratorResult<(), D> {
-                    stream.seek(SeekFrom::Start(current_address as u64))?;
+                    stream.seek(SeekFrom::Start(current_address))?;
                     stream.read_exact(&mut directory_entry_bytes)?;
 
                     Ok(())
@@ -118,7 +118,7 @@ where
         propagate_device_iteration_errors!(
             self.device
                 .with_stream(async |stream| -> DirectoryEntryIteratorResult<(), D> {
-                    stream.seek(SeekFrom::Start(current_address as u64)).await?;
+                    stream.seek(SeekFrom::Start(current_address)).await?;
                     stream.read_exact(&mut directory_entry_bytes).await?;
 
                     Ok(())
