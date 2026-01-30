@@ -53,25 +53,24 @@ where
     }
 
     fn root_directory(&self) -> Directory<'_, D> {
-        let directory_table_entry_count = self.bios_parameter_block.directory_table_entry_count();
-
-        if directory_table_entry_count > 0 {
-            DirectoryTable::new(
-                &self.device,
-                self.bios_parameter_block.directory_table_base_address(),
-                directory_table_entry_count,
-            )
-            .into()
-        } else {
-            DirectoryFile::new(
+        match self
+            .bios_parameter_block
+            .root_directory_file_cluster_number()
+        {
+            Some(root_directory_file_cluster_number) => DirectoryFile::new(
                 &self.device,
                 &self.allocation_table,
                 self.bios_parameter_block.data_region_base_address(),
                 self.bios_parameter_block.bytes_per_cluster(),
-                self.bios_parameter_block
-                    .root_directory_file_cluster_number(),
+                root_directory_file_cluster_number,
             )
-            .into()
+            .into(),
+            None => DirectoryTable::new(
+                &self.device,
+                self.bios_parameter_block.directory_table_base_address(),
+                self.bios_parameter_block.directory_table_entry_count(),
+            )
+            .into(),
         }
     }
 

@@ -1660,8 +1660,8 @@ mod tests {
                 ((cluster_count + 2) * 4)
                     + (entries_per_cluster * cluster_count * DIRECTORY_ENTRY_SIZE)
             ];
-            for cluster_index in 2..(cluster_count + 1) {
-                write_le_u32(&mut data, cluster_index * 4, cluster_index as u32 + 1);
+            for cluster_number in 2..(cluster_count + 1) {
+                write_le_u32(&mut data, cluster_number * 4, cluster_number as u32 + 1);
             }
             write_le_u32(
                 &mut data,
@@ -1669,14 +1669,14 @@ mod tests {
                 AllocationTableKind::Fat32.end_of_chain_value(),
             );
 
-            for cluster_index in 0..cluster_count {
+            for cluster_number in 0..cluster_count {
                 for entry_index in 0..entries_per_cluster {
-                    let is_last_entry = cluster_index == cluster_count - 1
+                    let is_last_entry = cluster_number == cluster_count - 1
                         && entry_index == entries_per_cluster - 1;
 
                     if !is_last_entry {
                         let entry_address = data_region_base_address
-                            + (cluster_index * entries_per_cluster * DIRECTORY_ENTRY_SIZE)
+                            + (cluster_number * entries_per_cluster * DIRECTORY_ENTRY_SIZE)
                             + (entry_index * DIRECTORY_ENTRY_SIZE);
 
                         data[entry_address] = 0xE5;

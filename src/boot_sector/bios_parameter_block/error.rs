@@ -1,11 +1,12 @@
 use core::error::Error;
 use core::fmt::{Display, Formatter};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(test, derive(strum::EnumIter))]
 pub enum BiosParameterBlockError {
+    AllocationTableCountInvalid,
+    AllocationTableTooSmall,
     BytesPerSectorInvalid,
-    FatCountInvalid,
     FilesystemVersionUnsupported,
     FsInfoSectorNumberInvalid,
     MediaTypeInvalid,
@@ -13,8 +14,8 @@ pub enum BiosParameterBlockError {
     RootDirectoryEntryCountInvalid,
     RootDirectoryFileClusterNumberInvalid,
     SectorsPerClusterInvalid,
-    SectorsPerFat16BitInvalid,
-    SectorsPerFatNotSet,
+    SectorsPerAllocationTable16BitInvalid,
+    SectorsPerAllocationTableNotSet,
     TotalSectorCount16BitInvalid,
     TotalSectorCountNotSet,
 }
@@ -24,10 +25,18 @@ impl Error for BiosParameterBlockError {}
 impl Display for BiosParameterBlockError {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
+            BiosParameterBlockError::AllocationTableCountInvalid => {
+                write!(f, "BPB_NumFATs must not be zero")
+            }
+            BiosParameterBlockError::AllocationTableTooSmall => {
+                write!(
+                    f,
+                    "The allocation table size defined in BPB_FATSz16 or BPB_FATSz32 isn't large enough to fit entries for all possible data clusters"
+                )
+            }
             BiosParameterBlockError::BytesPerSectorInvalid => {
                 write!(f, "BPB_BytsPerSec must be one of the allowed values")
             }
-            BiosParameterBlockError::FatCountInvalid => write!(f, "BPB_NumFATs must not be zero"),
             BiosParameterBlockError::FilesystemVersionUnsupported => {
                 write!(f, "BPB_FSVer must be 0:0")
             }
@@ -52,10 +61,13 @@ impl Display for BiosParameterBlockError {
             BiosParameterBlockError::SectorsPerClusterInvalid => {
                 write!(f, "BPB_SecPerClus must be a positive power of 2")
             }
-            BiosParameterBlockError::SectorsPerFat16BitInvalid => {
-                write!(f, "BPB_FATSz16 must be zero for FAT32 volumes")
+            BiosParameterBlockError::SectorsPerAllocationTable16BitInvalid => {
+                write!(
+                    f,
+                    "BPB_FATSz16 must be zero for FAT32 volumes and non-zero for FAT12 or FAT16 volumes"
+                )
             }
-            BiosParameterBlockError::SectorsPerFatNotSet => {
+            BiosParameterBlockError::SectorsPerAllocationTableNotSet => {
                 write!(f, "Either BPB_FATSz16 or BPB_FATSz32 must be non-zero")
             }
             BiosParameterBlockError::TotalSectorCount16BitInvalid => {

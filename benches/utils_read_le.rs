@@ -1,7 +1,7 @@
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 
 // 2026-01-27:
-//   Results showed no meaningful difference among the possible implementations. Review of the 
+//   Results showed no meaningful difference among the possible implementations. Review of the
 //   generated ASM shows that the only effective difference after optimization is the specific panic
 //   messages produced when the input isn't valid.
 fn criterion_benchmark(c: &mut Criterion) {

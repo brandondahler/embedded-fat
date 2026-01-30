@@ -96,7 +96,7 @@ mod tests {
                 FileSystemError::DeviceError(IoError::default()),
                 FileSystemError::InvalidFatSignature,
                 FileSystemError::InvalidBiosParameterBlock(
-                    BiosParameterBlockError::FatCountInvalid,
+                    BiosParameterBlockError::AllocationTableCountInvalid,
                 ),
                 FileSystemError::StreamEndReached,
                 FileSystemError::StreamError(IoError::default()),
