@@ -73,9 +73,7 @@ where
     ) -> DirectoryEntryIteratorResult<bool, D> {
         match allocation_table_entry {
             AllocationTableEntry::NextClusterNumber(next_cluster_number) => {
-                self.current_cluster_number = next_cluster_number
-                    .value(self.allocation_table.kind())
-                    .unwrap();
+                self.current_cluster_number = next_cluster_number;
                 self.current_cluster_offset = 0;
 
                 Ok(true)

@@ -78,12 +78,6 @@ impl PartialEq for LongFileName {
     }
 }
 
-impl From<[Ucs2Character; LONG_NAME_MAX_LENGTH]> for LongFileName {
-    fn from(value: [Ucs2Character; LONG_NAME_MAX_LENGTH]) -> Self {
-        Self::new(value)
-    }
-}
-
 #[derive(Clone, Debug)]
 pub enum LongFileNameError {
     CharacterInvalid { character: char, offset: u8 },
@@ -288,23 +282,6 @@ mod tests {
 
             assert_ne!(name_1, name_2, "Values should not be equal");
             assert_ne!(name_2, name_1, "Values should not be equal");
-        }
-    }
-
-    mod from_ucs2_characters {
-        use super::*;
-
-        #[test]
-        fn creates_instance_with_values() {
-            let input: [Ucs2Character; LONG_NAME_MAX_LENGTH] = from_fn(|index| {
-                Ucs2Character::from_u16((index as u16) + 1).expect("Value should be valid")
-            });
-            let long_file_name: LongFileName = input.into();
-
-            assert_eq!(
-                long_file_name.ucs2_characters, input,
-                "Instance should contain same input characters"
-            );
         }
     }
 }

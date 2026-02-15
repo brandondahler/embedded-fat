@@ -64,6 +64,9 @@ impl From<ShortNameDirectoryEntry> for DirectoryEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::AsciiOnlyEncoder;
+    use crate::encoding::Ucs2Character;
+    use crate::file_name::ShortFileName;
 
     mod from_bytes {
         use super::*;
@@ -99,11 +102,15 @@ mod tests {
 
         #[test]
         fn short_name_parsed_correctly() {
+            let short_name_entry = ShortNameDirectoryEntry::builder()
+                .name(ShortFileName::from_str(&AsciiOnlyEncoder, "A").unwrap())
+                .attributes(DirectoryEntryAttributes::empty())
+                .first_cluster_number(2)
+                .file_size(0)
+                .build();
+
             let mut data = [0x00; DIRECTORY_ENTRY_SIZE];
-            data[0] = 0x41;
-            for index in 1..11 {
-                data[index] = 0x20;
-            }
+            short_name_entry.write(&mut data);
 
             let entry = DirectoryEntry::from_bytes(&data).expect("Ok should be returned");
 
@@ -128,13 +135,19 @@ mod tests {
 
         #[test]
         fn long_name_parsed_correctly() {
-            let mut data = [0xFF; DIRECTORY_ENTRY_SIZE];
-            data[0] = 0x01;
-            data[1] = 0x41;
-            data[2] = 0x00;
-            data[3] = 0x00;
-            data[4] = 0x00;
-            data[11] = 0x0F;
+            let mut ucs2_characters =
+                [Ucs2Character::from_u16(0xFFFF).unwrap(); LONG_NAME_CHARACTERS_PER_ENTRY];
+            ucs2_characters[0] = Ucs2Character::from_char('A').unwrap();
+            ucs2_characters[1] = Ucs2Character::null();
+
+            let long_name_entry = LongNameDirectoryEntry::builder()
+                .ucs2_characters(ucs2_characters)
+                .order_byte(0x01)
+                .short_name_checksum(0x00)
+                .build();
+
+            let mut data = [0x00; DIRECTORY_ENTRY_SIZE];
+            long_name_entry.write(&mut data);
 
             let entry = DirectoryEntry::from_bytes(&data).expect("Ok should be returned");
 

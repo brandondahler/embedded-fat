@@ -212,9 +212,7 @@ where
                             .read_entry(stream, new_cluster_number)?
                         {
                             AllocationTableEntry::NextClusterNumber(next_cluster_number) => {
-                                new_cluster_number = next_cluster_number
-                                    .value(self.allocation_table.kind())
-                                    .unwrap();
+                                new_cluster_number = next_cluster_number;
                                 new_cluster_offset -= self.bytes_per_cluster as i64;
                             }
                             AllocationTableEntry::EndOfFile => break,
@@ -279,9 +277,7 @@ where
                             .await?
                         {
                             AllocationTableEntry::NextClusterNumber(next_cluster_number) => {
-                                new_cluster_number = next_cluster_number
-                                    .value(self.allocation_table.kind())
-                                    .unwrap();
+                                new_cluster_number = next_cluster_number;
                                 new_cluster_offset -= self.bytes_per_cluster as i64;
                             }
                             AllocationTableEntry::EndOfFile => break,

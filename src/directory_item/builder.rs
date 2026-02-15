@@ -3,7 +3,7 @@ use crate::directory_entry::{
 };
 use crate::directory_item::{DirectoryItem, DirectoryItemError};
 use crate::encoding::Ucs2Character;
-use crate::file_name::LONG_NAME_MAX_LENGTH;
+use crate::file_name::{LONG_NAME_MAX_LENGTH, LongFileName};
 
 const LONG_NAME_PADDING_CHARACTER: Ucs2Character = Ucs2Character::from_u16(0xFFFF).unwrap();
 const LONG_NAME_MAX_ENTRY_COUNT: u8 =
@@ -111,18 +111,23 @@ impl DirectoryItemBuilder {
         self,
         entry: ShortNameDirectoryEntry,
     ) -> Result<DirectoryItem, DirectoryItemError> {
-        if let Some(long_name_state) = self.long_name_state {
-            ensure!(
-                self.current_entry_index == long_name_state.entry_count,
-                DirectoryItemError::LongNameOrphaned
-            );
+        let long_name = match self.long_name_state {
+            Some(long_name_state) => {
+                ensure!(
+                    self.current_entry_index == long_name_state.entry_count,
+                    DirectoryItemError::LongNameOrphaned
+                );
 
-            ensure!(
-                entry.name().checksum() == long_name_state.short_name_checksum,
-                DirectoryItemError::ShortNameChecksumMismatch
-            );
-        }
+                ensure!(
+                    entry.name().checksum() == long_name_state.short_name_checksum,
+                    DirectoryItemError::ShortNameChecksumMismatch
+                );
 
-        Ok(DirectoryItem::new(entry, self.long_name.into()))
+                Some(LongFileName::new(self.long_name))
+            }
+            None => None,
+        };
+
+        Ok(DirectoryItem::new(entry, long_name))
     }
 }

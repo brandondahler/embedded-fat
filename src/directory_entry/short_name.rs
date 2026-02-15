@@ -2,13 +2,16 @@ mod error;
 
 pub use error::*;
 
+use crate::AllocationTableKind;
 use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, DirectoryEntryAttributes};
 use crate::file_name::ShortFileName;
 use crate::utils::{read_le_u16, read_le_u32, write_le_u16, write_le_u32};
+use bon::Builder;
 
 pub const SHORT_NAME_CHARACTER_COUNT: usize = 11;
 
-#[derive(Clone, Debug)]
+#[derive(Builder, Clone, Debug)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct ShortNameDirectoryEntry {
     name: ShortFileName,
 
@@ -29,13 +32,25 @@ impl ShortNameDirectoryEntry {
             name_bytes[0] = 0xE5;
         }
 
+        let first_cluster_number =
+            (read_le_u16(bytes, 20) as u32) << 16 | read_le_u16(bytes, 26) as u32;
+        let file_size = read_le_u32(bytes, 28);
+
+        ensure!(
+            file_size > 0 || first_cluster_number != 0,
+            ShortNameDirectoryEntryError::FirstClusterNumberInvalid
+        );
+        ensure!(
+            first_cluster_number != 1,
+            ShortNameDirectoryEntryError::FirstClusterNumberInvalid
+        );
+
         Ok(Self {
             name: ShortFileName::new(name_bytes)?,
             attributes: DirectoryEntryAttributes::from_bits_retain(bytes[11]),
 
-            first_cluster_number: (read_le_u16(bytes, 20) as u32) << 16
-                | read_le_u16(bytes, 26) as u32,
-            file_size: read_le_u32(bytes, 28),
+            first_cluster_number,
+            file_size,
         })
     }
 

@@ -1,4 +1,3 @@
-use crate::allocation_table::entry_cluster_number::AllocationTableEntryClusterNumber;
 use crate::allocation_table::{AllocationTableKind, PhysicalAllocationTableEntry};
 
 /// Represents a single logical entry in the allocation table.
@@ -8,7 +7,7 @@ use crate::allocation_table::{AllocationTableKind, PhysicalAllocationTableEntry}
 pub enum AllocationTableEntry {
     Free,
     Reserved,
-    NextClusterNumber(AllocationTableEntryClusterNumber),
+    NextClusterNumber(u32),
     EndOfFile,
     BadSector,
 }
@@ -21,9 +20,7 @@ impl AllocationTableEntry {
             1 => AllocationTableEntry::Reserved,
             _ => {
                 if entry_value < table_kind.bad_sector_value() {
-                    AllocationTableEntry::NextClusterNumber(
-                        AllocationTableEntryClusterNumber::new(entry_value).unwrap(),
-                    )
+                    AllocationTableEntry::NextClusterNumber(entry_value)
                 } else if entry_value == table_kind.bad_sector_value() {
                     AllocationTableEntry::BadSector
                 } else {
@@ -40,9 +37,7 @@ impl AllocationTableEntry {
         let value = match self {
             AllocationTableEntry::Free => 0,
             AllocationTableEntry::Reserved => 1,
-            AllocationTableEntry::NextClusterNumber(cluster_number) => {
-                cluster_number.value(table_kind)?
-            }
+            AllocationTableEntry::NextClusterNumber(cluster_number) => *cluster_number,
             AllocationTableEntry::BadSector => table_kind.bad_sector_value(),
             AllocationTableEntry::EndOfFile => table_kind.end_of_chain_value(),
         };
@@ -76,21 +71,12 @@ mod tests {
         #[test]
         fn allocated_cluster_value_parsed_successfully() {
             for table_kind in AllocationTableKind::iter() {
-                verify_parses_correctly(
-                    table_kind,
-                    2,
-                    AllocationTableEntry::NextClusterNumber(
-                        AllocationTableEntryClusterNumber::new(2).unwrap(),
-                    ),
-                );
+                verify_parses_correctly(table_kind, 2, AllocationTableEntry::NextClusterNumber(2));
 
                 verify_parses_correctly(
                     table_kind,
                     table_kind.bad_sector_value() - 1,
-                    AllocationTableEntry::NextClusterNumber(
-                        AllocationTableEntryClusterNumber::new(table_kind.bad_sector_value() - 1)
-                            .unwrap(),
-                    ),
+                    AllocationTableEntry::NextClusterNumber(table_kind.bad_sector_value() - 1),
                 );
             }
         }
@@ -136,16 +122,13 @@ mod tests {
 
     mod as_physical_entry {
         use super::*;
-        use crate::allocation_table::AllocationTableEntryOffset;
 
         #[test]
         fn values_roundtrips_physical_representation() {
             let values = [
                 AllocationTableEntry::Free,
                 AllocationTableEntry::Reserved,
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(2).unwrap(),
-                ),
+                AllocationTableEntry::NextClusterNumber(2),
                 AllocationTableEntry::BadSector,
                 AllocationTableEntry::EndOfFile,
             ];
@@ -163,10 +146,7 @@ mod tests {
 
         #[test]
         fn unsupported_cluster_number_returns_none() {
-            let entry = AllocationTableEntry::NextClusterNumber(
-                AllocationTableEntryClusterNumber::new(0x00FF_FFFF).unwrap(),
-            );
-
+            let entry = AllocationTableEntry::NextClusterNumber(0x00FF_FFFF);
             let result = entry.as_physical_entry(AllocationTableKind::Fat16);
 
             assert!(result.is_err(), "Err should be returned");

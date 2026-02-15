@@ -175,7 +175,8 @@ where
         let mut file_path_part = file_path_part_iterator.next()?;
 
         loop {
-            let mut item_iterator = current_directory.items();
+            let iterator_directory = current_directory;
+            let mut item_iterator = iterator_directory.items();
 
             loop {
                 let item = match item_iterator.next()? {
@@ -257,7 +258,8 @@ where
         let mut file_path_part = file_path_part_iterator.next()?;
 
         loop {
-            let mut item_iterator = current_directory.items();
+            let iterator_directory = current_directory;
+            let mut item_iterator = iterator_directory.items();
 
             loop {
                 let item = match item_iterator.next_async().await? {

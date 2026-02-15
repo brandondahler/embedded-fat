@@ -8,20 +8,23 @@ pub use error::*;
 pub use iteration_error::*;
 pub use iterator::*;
 
-use crate::CodePageEncoder;
 use crate::directory_entry::ShortNameDirectoryEntry;
 use crate::file_name::{LongFileName, ShortFileName};
+use crate::{AllocationTableKind, CodePageEncoder};
 
 pub const DIRECTORY_ENTITY_LONG_NAME_MAX_LENGTH: usize = 255;
 
 #[derive(Clone, Debug)]
 pub struct DirectoryItem {
     short_directory_entry: ShortNameDirectoryEntry,
-    long_name: LongFileName,
+    long_name: Option<LongFileName>,
 }
 
 impl DirectoryItem {
-    pub fn new(short_directory_entry: ShortNameDirectoryEntry, long_name: LongFileName) -> Self {
+    pub fn new(
+        short_directory_entry: ShortNameDirectoryEntry,
+        long_name: Option<LongFileName>,
+    ) -> Self {
         Self {
             short_directory_entry,
             long_name,
@@ -48,9 +51,9 @@ impl DirectoryItem {
     where
         CPE: CodePageEncoder,
     {
-        if !self.long_name.is_empty()
-            && let Ok(long_name) = LongFileName::from_str(file_name)
-            && self.long_name == long_name
+        if let Some(item_long_name) = self.long_name.as_ref()
+            && let Ok(input_long_name) = LongFileName::from_str(file_name)
+            && item_long_name == &input_long_name
         {
             return true;
         }

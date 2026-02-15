@@ -1,11 +1,11 @@
 mod entry;
-mod entry_cluster_number;
+mod entry_offset;
 mod error;
 mod kind;
 mod physical_entry;
 
 pub use entry::*;
-pub use entry_cluster_number::*;
+pub use entry_offset::*;
 pub use error::*;
 pub use kind::*;
 pub use physical_entry::*;
@@ -44,9 +44,11 @@ impl AllocationTable {
         S: Read + Seek,
     {
         let mut entry_value_bytes = [0u8; 4];
-        let entry_address = self.resolve_entry_address(cluster_number);
+        let entry_offest = self.resolve_entry_offset(cluster_number);
 
-        stream.seek(SeekFrom::Start(entry_address.address))?;
+        stream.seek(SeekFrom::Start(
+            self.base_address + entry_offest.byte_offset,
+        ))?;
 
         match self.kind {
             AllocationTableKind::Fat12 | AllocationTableKind::Fat16 => {
@@ -60,7 +62,7 @@ impl AllocationTable {
         Ok(PhysicalAllocationTableEntry::from_bytes(
             self.kind,
             &entry_value_bytes,
-            entry_address.is_nibble_offset,
+            entry_offest.is_nibble_offset,
         )
         .as_logical_entry())
     }
@@ -75,9 +77,13 @@ impl AllocationTable {
         S: AsyncRead + AsyncSeek,
     {
         let mut entry_value_bytes = [0u8; 4];
-        let entry_address = self.resolve_entry_address(cluster_number);
+        let entry_offset = self.resolve_entry_offset(cluster_number);
 
-        stream.seek(SeekFrom::Start(entry_address.address)).await?;
+        stream
+            .seek(SeekFrom::Start(
+                self.base_address + entry_offset.byte_offset,
+            ))
+            .await?;
 
         match self.kind {
             AllocationTableKind::Fat12 | AllocationTableKind::Fat16 => {
@@ -91,29 +97,25 @@ impl AllocationTable {
         Ok(PhysicalAllocationTableEntry::from_bytes(
             self.kind,
             &entry_value_bytes,
-            entry_address.is_nibble_offset,
+            entry_offset.is_nibble_offset,
         )
         .as_logical_entry())
     }
 
-    fn resolve_entry_address(&self, cluster_number: u32) -> AllocationTableEntryOffset {
-        let address_offset = match self.kind {
-            AllocationTableKind::Fat12 => cluster_number + (cluster_number / 2),
-            AllocationTableKind::Fat16 => cluster_number * 2,
-            AllocationTableKind::Fat32 => cluster_number * 4,
+    fn resolve_entry_offset(&self, cluster_number: u32) -> AllocationTableEntryOffset {
+        let entry_index = cluster_number as u64;
+        let byte_offset = match self.kind {
+            AllocationTableKind::Fat12 => entry_index + (entry_index / 2),
+            AllocationTableKind::Fat16 => entry_index * 2,
+            AllocationTableKind::Fat32 => entry_index * 4,
         };
 
         AllocationTableEntryOffset {
-            address: self.base_address + address_offset as u64,
+            byte_offset,
             is_nibble_offset: matches!(self.kind, AllocationTableKind::Fat12)
                 && cluster_number % 2 == 1,
         }
     }
-}
-
-struct AllocationTableEntryOffset {
-    pub address: u64,
-    pub is_nibble_offset: bool,
 }
 
 #[cfg(test)]
@@ -150,9 +152,7 @@ mod tests {
                 allocation_table
                     .read_entry(&mut stream, 0)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0x412).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0x412),
                 "Non-offset value should read correctly"
             );
 
@@ -160,9 +160,7 @@ mod tests {
                 allocation_table
                     .read_entry(&mut stream, 1)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0x563).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0x563),
                 "Nibble-offset value should read correctly"
             );
 
@@ -170,9 +168,7 @@ mod tests {
                 allocation_table
                     .read_entry(&mut stream, 2)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0xA78).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0xA78),
                 "Byte offset value should read correctly"
             );
 
@@ -180,9 +176,7 @@ mod tests {
                 allocation_table
                     .read_entry(&mut stream, 3)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0xBC9).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0xBC9),
                 "Byte and nibble offset value should read correctly"
             );
         }
@@ -196,9 +190,7 @@ mod tests {
                 allocation_table
                     .read_entry(&mut stream, 0)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0x3412).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0x3412),
                 "Non-offset value should read correctly"
             );
 
@@ -206,9 +198,7 @@ mod tests {
                 allocation_table
                     .read_entry(&mut stream, 1)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0x7856).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0x7856),
                 "Offset value should read correctly"
             );
         }
@@ -224,9 +214,7 @@ mod tests {
                 allocation_table
                     .read_entry(&mut stream, 0)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0x08563412).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0x08563412),
                 "Non-offset value should read correctly"
             );
 
@@ -234,9 +222,7 @@ mod tests {
                 allocation_table
                     .read_entry(&mut stream, 1)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0x0FDEBC9A).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0x0FDEBC9A),
                 "Offset value should read correctly"
             );
         }
@@ -250,9 +236,7 @@ mod tests {
                 allocation_table
                     .read_entry(&mut stream, 0)
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0x7856).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0x7856),
                 "Value should read correctly"
             );
         }
@@ -324,9 +308,7 @@ mod tests {
                     .read_entry_async(&mut stream, 0)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0x412).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0x412),
                 "Non-offset value should read correctly"
             );
 
@@ -335,9 +317,7 @@ mod tests {
                     .read_entry_async(&mut stream, 1)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0x563).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0x563),
                 "Nibble-offset value should read correctly"
             );
 
@@ -346,9 +326,7 @@ mod tests {
                     .read_entry_async(&mut stream, 2)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0xA78).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0xA78),
                 "Byte offset value should read correctly"
             );
 
@@ -357,9 +335,7 @@ mod tests {
                     .read_entry_async(&mut stream, 3)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0xBC9).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0xBC9),
                 "Byte and nibble offset value should read correctly"
             );
         }
@@ -374,9 +350,7 @@ mod tests {
                     .read_entry_async(&mut stream, 0)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0x3412).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0x3412),
                 "Non-offset value should read correctly"
             );
 
@@ -385,9 +359,7 @@ mod tests {
                     .read_entry_async(&mut stream, 1)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0x7856).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0x7856),
                 "Offset value should read correctly"
             );
         }
@@ -404,9 +376,7 @@ mod tests {
                     .read_entry_async(&mut stream, 0)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0x08563412).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0x08563412),
                 "Non-offset value should read correctly"
             );
 
@@ -415,9 +385,7 @@ mod tests {
                     .read_entry_async(&mut stream, 1)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0x0FDEBC9A).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0x0FDEBC9A),
                 "Offset value should read correctly"
             );
         }
@@ -432,9 +400,7 @@ mod tests {
                     .read_entry_async(&mut stream, 0)
                     .await
                     .expect("Read should succeed"),
-                AllocationTableEntry::NextClusterNumber(
-                    AllocationTableEntryClusterNumber::new(0x7856).unwrap()
-                ),
+                AllocationTableEntry::NextClusterNumber(0x7856),
                 "Value should read correctly"
             );
         }

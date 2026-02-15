@@ -22,6 +22,9 @@ use {
     embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek},
 };
 
+#[cfg(test)]
+use crate::mock::ScriptedDirectoryEntryIterator;
+
 pub type DirectoryEntryIteratorResult<R, D> = Result<
     R,
     DirectoryEntryIterationError<<D as Device>::Error, <<D as Device>::Stream as ErrorType>::Error>,
@@ -34,6 +37,9 @@ where
 {
     Table(DirectoryTableEntryIterator<'a, D>),
     File(DirectoryFileEntryIterator<'a, D>),
+
+    #[cfg(test)]
+    Scripted(ScriptedDirectoryEntryIterator<'a, D>),
 }
 
 #[cfg(feature = "sync")]
@@ -46,6 +52,9 @@ where
         match self {
             DirectoryEntryIterator::Table(table_iterator) => table_iterator.peek(),
             DirectoryEntryIterator::File(file_iterator) => file_iterator.peek(),
+
+            #[cfg(test)]
+            DirectoryEntryIterator::Scripted(scripted_iterator) => scripted_iterator.peek(),
         }
     }
 
@@ -53,6 +62,9 @@ where
         match self {
             DirectoryEntryIterator::Table(table_iterator) => Ok(table_iterator.advance()),
             DirectoryEntryIterator::File(file_iterator) => file_iterator.advance(),
+
+            #[cfg(test)]
+            DirectoryEntryIterator::Scripted(scripted_iterator) => scripted_iterator.advance(),
         }
     }
 
@@ -60,6 +72,9 @@ where
         match self {
             DirectoryEntryIterator::Table(table_iterator) => table_iterator.next(),
             DirectoryEntryIterator::File(file_iterator) => file_iterator.next(),
+
+            #[cfg(test)]
+            DirectoryEntryIterator::Scripted(scripted_iterator) => scripted_iterator.next(),
         }
     }
 }
@@ -74,6 +89,11 @@ where
         match self {
             DirectoryEntryIterator::Table(table_iterator) => table_iterator.peek_async().await,
             DirectoryEntryIterator::File(file_iterator) => file_iterator.peek_async().await,
+
+            #[cfg(test)]
+            DirectoryEntryIterator::Scripted(scripted_iterator) => {
+                scripted_iterator.peek_async().await
+            }
         }
     }
 
@@ -81,6 +101,11 @@ where
         match self {
             DirectoryEntryIterator::Table(table_iterator) => Ok(table_iterator.advance()),
             DirectoryEntryIterator::File(file_iterator) => file_iterator.advance_async().await,
+
+            #[cfg(test)]
+            DirectoryEntryIterator::Scripted(scripted_iterator) => {
+                scripted_iterator.advance_async().await
+            }
         }
     }
 
@@ -88,6 +113,11 @@ where
         match self {
             DirectoryEntryIterator::Table(table_iterator) => table_iterator.next_async().await,
             DirectoryEntryIterator::File(file_iterator) => file_iterator.next_async().await,
+
+            #[cfg(test)]
+            DirectoryEntryIterator::Scripted(scripted_iterator) => {
+                scripted_iterator.next_async().await
+            }
         }
     }
 }
@@ -107,6 +137,16 @@ where
 {
     fn from(value: DirectoryFileEntryIterator<'a, D>) -> Self {
         Self::File(value)
+    }
+}
+
+#[cfg(test)]
+impl<'a, D> From<ScriptedDirectoryEntryIterator<'a, D>> for DirectoryEntryIterator<'a, D>
+where
+    D: Device,
+{
+    fn from(value: ScriptedDirectoryEntryIterator<'a, D>) -> Self {
+        Self::Scripted(value)
     }
 }
 

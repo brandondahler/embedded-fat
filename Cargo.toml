@@ -12,6 +12,7 @@ unicode-case-folding = []
 
 [dependencies]
 bitflags = "2"
+bon = { version = "3", default-features = false}
 embedded-io = "0.7"
 embedded-io-async = { version = "0.7", optional = true }
 

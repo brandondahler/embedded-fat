@@ -1,5 +1,6 @@
 mod error;
 
+use bon::Builder;
 pub use error::*;
 
 use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, DirectoryEntryAttributes};
@@ -11,7 +12,7 @@ pub const LONG_NAME_CHARACTERS_PER_ENTRY: usize = 13;
 pub const LONG_NAME_MAX_ENTRY_COUNT: u8 =
     LONG_NAME_MAX_LENGTH.div_ceil(LONG_NAME_CHARACTERS_PER_ENTRY) as u8;
 
-#[derive(Clone, Debug)]
+#[derive(Builder, Clone, Debug)]
 pub struct LongNameDirectoryEntry {
     order_byte: u8,
 
