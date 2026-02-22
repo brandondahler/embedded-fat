@@ -1,20 +1,12 @@
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 
 // NOTE: This is only possible because this module is designed to be standalone
-#[path = "../src/encoding/ucs2_character/case_folding.rs"]
-mod ucs2_character_case_folding;
+#[path = "../src/encoding/unicode/case_folding.rs"]
+mod unicode_case_folding;
 
-use ucs2_character_case_folding::fold_character;
-use ucs2_character_case_folding::tests::unoptimized_fold_character;
+use unicode_case_folding::fold_codepoint;
+use unicode_case_folding::tests::unoptimized_fold_codepoint;
 
-// 2026-01-27:
-//   Results showed there is a meaningful difference between the possible cases. For ASCII, the
-//   optimized solution is ~6x faster due to its special case handling.  For range hits, the
-//   optimized solution is at least ~2x faster.  For range misses and all lookups, the optimized
-//   solution is ~20% slower.
-//
-//   Review of the generated ASM shows that the optimized implementation saves ~1.5KB in code size
-//   primarily by shrinking the lookup table.
 fn criterion_benchmark(c: &mut Criterion) {
     let characters = [
         ('a', "ASCII lowercase, special case hit"),
@@ -31,20 +23,20 @@ fn criterion_benchmark(c: &mut Criterion) {
         ('ﬆ', "Alphabetic presentation, late lookup miss"),
     ];
 
-    let mut group = c.benchmark_group("Ucs2 Character Case Folding");
+    let mut group = c.benchmark_group("Unicode Case Folding");
     for (character, description) in characters {
-        let character_code = character as u16;
+        let character_code = character as u32;
         let full_description = format!("{description}: {character} (\\u{{{character_code:04X}}})");
 
         group.bench_with_input(
             BenchmarkId::new("Optimized", &full_description),
             &character_code,
-            |b, &input| b.iter(|| fold_character(input)),
+            |b, &input| b.iter(|| fold_codepoint(input)),
         );
         group.bench_with_input(
             BenchmarkId::new("Unoptimized", &full_description),
             &character_code,
-            |b, &input| b.iter(|| unoptimized_fold_character(input)),
+            |b, &input| b.iter(|| unoptimized_fold_codepoint(input)),
         );
     }
     group.finish();

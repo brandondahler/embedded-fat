@@ -2,8 +2,6 @@
 /.idea/
 /build/
 /target/
-/ucs2_casing_codegen/build/
-/ucs2_casing_codegen/target/
 *.pdb
 *.rs.bk
 **/mutants.out*/

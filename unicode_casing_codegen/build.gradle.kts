@@ -41,9 +41,9 @@ tasks {
         dependsOn(cargoFormatCheck, cargoClippy)
     }
 
-    val regenerateUcs2Casing by registering(Exec::class) {
+    val regenerateUnicodeCasing by registering(Exec::class) {
         val caseFoldingFileLocation = getTemporaryDir().toPath().resolve("CaseFolding.txt").toFile()
-        val outputFile = project.parent!!.layout.projectDirectory.file("src/encoding/ucs2_character/case_folding.rs")
+        val outputFile = project.parent!!.layout.projectDirectory.file("src/encoding/unicode/case_folding.rs")
 
         commandLine(
             "cargo", "run", "--",
@@ -60,6 +60,8 @@ tasks {
                 dest(caseFoldingFileLocation)
                 overwrite(shouldOverwrite)
             }
+
+            mkdir(outputFile.asFile.parent)
         }
     }
 

@@ -1,0 +1,13 @@
+[package]
+name = "unicode_casing_bin_size"
+version = "0.1.0"
+edition = "2024"
+
+
+[features]
+default = []
+
+ucs2 = []
+unicode = []
+
+[dependencies]

@@ -28,12 +28,12 @@ impl Display for ShortFileNameParseError {
         match self {
             ShortFileNameParseError::CharacterNotAllowed { character, offset } => write!(
                 f,
-                "the character `{character}` (\\u{:08X}) at offset {offset} is not allowed",
+                "the character `{character}` (\\u{:06X}) at offset {offset} is not allowed",
                 *character as u32
             ),
             ShortFileNameParseError::CharacterNotEncodable { character, offset } => write!(
                 f,
-                "the character `{character}` (\\u{:08X}) at offset {offset} is not ecodable by the configured encoder",
+                "the character `{character}` (\\u{:06X}) at offset {offset} is not encodable by the configured encoder",
                 *character as u32
             ),
             ShortFileNameParseError::EncodedCharacterByteNotAllowed {
@@ -43,7 +43,7 @@ impl Display for ShortFileNameParseError {
             } => {
                 write!(
                     f,
-                    "the resulting encoded byte 0x{encoded_character:02X} for character `{character}` (\\u{:08X}) at offset {offset} is not allowed",
+                    "the resulting encoded byte 0x{encoded_character:02X} for character `{character}` (\\u{:06X}) at offset {offset} is not allowed",
                     *character as u32
                 )
             }

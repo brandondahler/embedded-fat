@@ -1,3 +1,3 @@
 rootProject.name = "embedded-fat"
 
-include("ucs2_casing_codegen")
+include("unicode_casing_codegen")

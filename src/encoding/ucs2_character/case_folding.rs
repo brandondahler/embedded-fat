@@ -779,7 +779,7 @@ static LOOKUP: [(u16, u16); 776] = [
 
 pub fn fold_character(character: u16) -> u16 {
     // Handle ASCII range explicitly to optimize for the most common characters
-    if matches!(character, 0x0000..=0x007F) {
+    if matches!(character, 0x00..=0x7F) {
         return match character {
             0x0041..=0x005A => character + 32,
             _ => character,

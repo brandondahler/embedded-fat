@@ -28,5 +28,9 @@ name = "ucs2_character_case_folding"
 harness = false
 
 [[bench]]
+name = "unicode_case_folding"
+harness = false
+
+[[bench]]
 name = "utils_read_le"
 harness = false
