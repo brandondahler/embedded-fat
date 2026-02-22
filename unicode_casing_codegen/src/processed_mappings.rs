@@ -3,15 +3,18 @@ use std::collections::{BTreeMap, HashSet};
 
 pub struct ProcessedMappings {
     runs: Vec<Run>,
+    skip_series_list: Vec<SkipSeries>,
     differences: HashSet<i32>,
 }
 
 impl ProcessedMappings {
     pub fn new(parsed_mappings: &BTreeMap<u32, u32>) -> Self {
         let mut runs = Vec::with_capacity(2000);
+        let mut skip_series_list = Vec::with_capacity(100);
         let mut differences = HashSet::with_capacity(256);
 
         let mut current_run: Option<Run> = None;
+        let mut current_skip_series: Option<SkipSeries> = None;
 
         for (&source_codepoint, &target_codepoint) in parsed_mappings {
             assert_eq!(
@@ -22,6 +25,11 @@ impl ProcessedMappings {
 
             let difference =
                 i32::try_from(target_codepoint).unwrap() - i32::try_from(source_codepoint).unwrap();
+
+            assert_ne!(
+                difference, 0,
+                "Mappings should always have a non-zero difference"
+            );
 
             // Skip the ASCII range after validating that it matches the expected
             if matches!(source_codepoint, 0x00..=0x7F) {
@@ -34,6 +42,34 @@ impl ProcessedMappings {
                     "Mappings should target the matching lowercase character"
                 );
                 continue;
+            }
+
+            // Special case for skip series
+            if difference == 1 {
+                // Push current run if present
+                if let Some(run) = current_run.take() {
+                    runs.push(run);
+                }
+
+                if let Some(skip_series) = current_skip_series.as_mut() {
+                    // Attempt to add to existing skip series
+                    if skip_series.try_add(source_codepoint) {
+                        continue;
+                    }
+
+                    // Add previous skip series before starting a new one
+                    let skip_series = current_skip_series.take().unwrap();
+                    skip_series_list.push(skip_series);
+                }
+
+                // Start a new skip series
+                current_skip_series = Some(SkipSeries::new(source_codepoint, 1));
+                continue;
+            }
+
+            // Push current skip series if present
+            if let Some(skip_series) = current_skip_series.take() {
+                skip_series_list.push(skip_series);
             }
 
             differences.insert(difference);
@@ -53,11 +89,23 @@ impl ProcessedMappings {
             current_run = Some(Run::new(source_codepoint, difference));
         }
 
+        if let Some(skip_series) = current_skip_series.take() {
+            skip_series_list.push(skip_series);
+        }
+
         if let Some(run) = current_run.take() {
             runs.push(run);
         }
 
-        Self { runs, differences }
+        Self {
+            runs,
+            skip_series_list,
+            differences,
+        }
+    }
+
+    pub fn skip_series_list(&self) -> &Vec<SkipSeries> {
+        &self.skip_series_list
     }
 
     pub fn runs(&self) -> &Vec<Run> {
@@ -110,6 +158,44 @@ impl Run {
         }
 
         self.end_offset += 1;
+        true
+    }
+}
+
+pub struct SkipSeries {
+    starting_codepoint: u32,
+    end_offset: u8,
+}
+
+impl SkipSeries {
+    pub fn new(starting_codepoint: u32, end_offset: u8) -> Self {
+        Self {
+            starting_codepoint,
+            end_offset,
+        }
+    }
+
+    pub fn starting_codepoint(&self) -> u32 {
+        self.starting_codepoint
+    }
+
+    pub fn end_offset(&self) -> u8 {
+        self.end_offset
+    }
+
+    fn try_add(&mut self, source_codepoint: u32) -> bool {
+        let is_next_codepoint =
+            source_codepoint == (self.starting_codepoint + self.end_offset as u32 + 1);
+
+        if !is_next_codepoint {
+            return false;
+        }
+
+        if self.end_offset >= u8::MAX - 1 {
+            return false;
+        }
+
+        self.end_offset += 2;
         true
     }
 }

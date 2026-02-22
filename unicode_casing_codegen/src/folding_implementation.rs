@@ -3,15 +3,18 @@ use crate::processed_mappings::ProcessedMappings;
 use crate::types::UnicodePlane;
 use indenter::CodeFormatter;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::fmt::{Display, Formatter};
-use std::fmt::{UpperHex, Write};
+use std::fmt::{Display, Formatter, Write};
 use std::iter::chain;
 
 pub struct FoldingImplementation {
+    skip_series_list: BTreeMap<UnicodePlane, Vec<u16>>,
+    skip_series_end_offsets: Vec<u8>,
+
     runs: BTreeMap<UnicodePlane, Vec<u16>>,
+    run_end_offsets: Vec<u8>,
+
     entries: BTreeMap<UnicodePlane, Vec<u16>>,
 
-    run_end_offsets: Vec<u8>,
     difference_indices: Vec<u8>,
 
     small_negative_differences: Vec<u8>,
@@ -64,6 +67,22 @@ impl FoldingImplementation {
                 }
                 _ => panic!("Difference outside of expected range"),
             };
+        }
+
+        let mut skip_series_list = BTreeMap::new();
+        let mut skip_series_end_offsets = Vec::with_capacity(128);
+
+        for skip_series in processed_mappings.skip_series_list() {
+            let unicode_plane = UnicodePlane::for_codepoint(skip_series.starting_codepoint());
+            let code_unit = skip_series.starting_codepoint() as u16;
+            let end_offset = skip_series.end_offset();
+
+            skip_series_list
+                .entry(unicode_plane)
+                .or_insert_with(|| Vec::with_capacity(128))
+                .push(code_unit);
+
+            skip_series_end_offsets.push(end_offset);
         }
 
         let mut runs = BTreeMap::new();
@@ -129,10 +148,14 @@ impl FoldingImplementation {
         }
 
         Self {
+            skip_series_list,
+            skip_series_end_offsets,
+
             runs,
+            run_end_offsets,
+
             entries,
 
-            run_end_offsets,
             difference_indices: Vec::from_iter(chain(
                 run_difference_indices.iter().copied(),
                 entry_difference_indices.iter().copied(),
@@ -143,6 +166,250 @@ impl FoldingImplementation {
             medium_negative_differences,
             medium_positive_differences,
         }
+    }
+
+    fn write_functions(&self, f: &mut CodeFormatter<Formatter>) -> std::fmt::Result {
+        let unicode_planes = BTreeSet::from_iter(chain(
+            self.runs.keys().copied(),
+            self.entries.keys().copied(),
+        ));
+
+        write!(
+            f,
+            "
+            pub fn fold_codepoint(codepoint: u32) -> u32 {{
+                // Handle ASCII range explicitly to optimize for the most common characters
+                if matches!(codepoint, 0x00..=0x7F) {{
+                    return match codepoint {{
+                        0x0041..=0x005A => codepoint + 32,
+                        _ => codepoint,
+                    }};
+                }}
+
+                let unicode_plane = (codepoint >> 16) as u8;
+                let code_unit = codepoint as u16;
+
+                #[rustfmt::skip]
+                let mapped_code_unit = match unicode_plane {{
+            "
+        )?;
+
+        f.indent(2);
+        for unicode_plane in unicode_planes {
+            let unicode_plane_value = unicode_plane.value();
+
+            write!(
+                f,
+                "
+                0x{unicode_plane_value:02X} => {{
+                    translate_code_unit(
+                        code_unit,
+                "
+            )?;
+
+            f.indent(2);
+            if self.skip_series_list.contains_key(&unicode_plane) {
+                write!(
+                    f,
+                    "
+                    &SKIP_SERIES_LIST_{unicode_plane_value:02X},
+                    SKIP_SERIES_LIST_{unicode_plane_value:02X}_OFFSET as usize,
+                    "
+                )?;
+            } else {
+                write!(
+                    f,
+                    "
+                    &[],
+                    0,
+                    "
+                )?;
+            }
+
+            if self.runs.contains_key(&unicode_plane) {
+                write!(
+                    f,
+                    "
+                    &RUNS_{unicode_plane_value:02X},
+                    RUNS_{unicode_plane_value:02X}_ITEM_OFFSET as usize,
+                    "
+                )?;
+            } else {
+                write!(
+                    f,
+                    "
+                    &[],
+                    0,
+                    "
+                )?;
+            }
+
+            if self.entries.contains_key(&unicode_plane) {
+                write!(
+                    f,
+                    "
+                    &ENTRIES_{unicode_plane_value:02X},
+                    ENTRIES_{unicode_plane_value:02X}_ITEM_OFFSET as usize
+                    "
+                )?;
+            } else {
+                write!(
+                    f,
+                    "
+                    &[],
+                    0
+                    "
+                )?;
+            }
+            f.dedent(2);
+
+            write!(
+                f,
+                "
+                    )
+                }}
+
+                "
+            )?;
+        }
+        f.dedent(2);
+
+        write!(
+            f,
+            "
+                    _ => return codepoint,
+                }};
+
+                ((unicode_plane as u32) << 16) | mapped_code_unit as u32
+            }}
+
+            #[inline(always)]
+            fn translate_code_unit(
+                code_unit: u16,
+                skip_series_list: &[u16],
+                skip_series_offset: usize,
+                runs: &[u16],
+                runs_item_offset: usize,
+                entries: &[u16],
+                entries_item_offset: usize,
+            ) -> u16 {{
+                let skip_series_starting_code_unit = match skip_series_list.binary_search(&code_unit) {{
+                    Ok(skip_series_index) => unsafe {{
+                        Some(*skip_series_list.get_unchecked(skip_series_index))
+                    }},
+                    Err(insertion_index) if insertion_index > 0 => {{
+                        let candidate_skip_series_index = insertion_index - 1;
+
+                        // SAFETY: Pre-computed during code generation
+                        let skip_series_end_offset = unsafe {{
+                            *SKIP_SERIES_END_OFFSETS
+                                .get_unchecked(skip_series_offset + candidate_skip_series_index)
+                        }};
+
+                        // SAFETY: Pre-computed during code generation
+                        let starting_code_unit =
+                            unsafe {{ *skip_series_list.get_unchecked(candidate_skip_series_index) }};
+                        let ending_code_unit = starting_code_unit + skip_series_end_offset as u16;
+
+                        if code_unit <= ending_code_unit {{
+                            Some(starting_code_unit)
+                        }} else {{
+                            None
+                        }}
+                    }}
+                    _ => None,
+                }};
+
+                if let Some(skip_series_starting_code_unit) = skip_series_starting_code_unit {{
+                    let is_starting_code_unit_odd = (skip_series_starting_code_unit & 1) > 0;
+                    let is_code_unit_odd = (code_unit & 1) > 0;
+
+                    return if is_starting_code_unit_odd == is_code_unit_odd {{
+                        code_unit + 1
+                    }} else {{
+                        code_unit
+                    }};
+                }}
+
+                let run_index = match runs.binary_search(&code_unit) {{
+                    Ok(run_index) => Some(run_index),
+                    Err(insertion_index) if insertion_index > 0 => {{
+                        let candidate_run_index = insertion_index - 1;
+
+                        // SAFETY: Pre-computed during code generation
+                        let run_end_offset =
+                            unsafe {{ *RUN_END_OFFSETS.get_unchecked(runs_item_offset + candidate_run_index) }};
+
+                        // SAFETY: Pre-computed during code generation
+                        let starting_code_unit = unsafe {{ *runs.get_unchecked(candidate_run_index) }};
+                        let ending_code_unit = starting_code_unit + run_end_offset as u16;
+
+                        if code_unit <= ending_code_unit {{
+                            Some(candidate_run_index)
+                        }} else {{
+                            None
+                        }}
+                    }}
+                    _ => None,
+                }};
+
+                if let Some(run_index) = run_index {{
+                    return apply_difference(code_unit, runs_item_offset + run_index);
+                }}
+
+                match entries.binary_search(&code_unit) {{
+                    Ok(entry_index) => apply_difference(code_unit, entries_item_offset + entry_index),
+                    Err(_) => code_unit,
+                }}
+            }}
+
+            #[inline]
+            fn apply_difference(code_unit: u16, item_index: usize) -> u16 {{
+                // SAFETY: Pre-computed during code generation
+                let difference_index = unsafe {{ *DIFFERENCE_INDICES.get_unchecked(item_index) }};
+
+                let difference = match difference_index {{
+                    0..SMALL_POSITIVE_DIFFERENCES_START_INDEX => {{
+                        // SAFETY: Pre-computed during code generation
+                        unsafe {{
+                            -(*SMALL_NEGATIVE_DIFFERENCES.get_unchecked(difference_index as usize) as i32)
+                        }}
+                    }}
+
+                    SMALL_POSITIVE_DIFFERENCES_START_INDEX..MEDIUM_NEGATIVE_DIFFERENCES_START_INDEX => {{
+                        // SAFETY: Pre-computed during code generation
+                        unsafe {{
+                            *SMALL_POSITIVE_DIFFERENCES.get_unchecked(
+                                (difference_index - SMALL_POSITIVE_DIFFERENCES_START_INDEX) as usize,
+                            ) as i32
+                        }}
+                    }}
+
+                    MEDIUM_NEGATIVE_DIFFERENCES_START_INDEX..MEDIUM_POSITIVE_DIFFERENCES_START_INDEX => {{
+                        // SAFETY: Pre-computed during code generation
+                        unsafe {{
+                            -(*MEDIUM_NEGATIVE_DIFFERENCES.get_unchecked(
+                                (difference_index - MEDIUM_NEGATIVE_DIFFERENCES_START_INDEX) as usize,
+                            ) as i32)
+                        }}
+                    }}
+
+                    _ => {{
+                        // SAFETY: Pre-computed during code generation
+                        unsafe {{
+                            *MEDIUM_POSITIVE_DIFFERENCES.get_unchecked(
+                                (difference_index - MEDIUM_POSITIVE_DIFFERENCES_START_INDEX) as usize,
+                            ) as i32
+                        }}
+                    }}
+                }};
+
+                (code_unit as i32 + difference) as u16
+            }}
+            "
+        )?;
+
+        Ok(())
     }
 
     fn write_differences<T: ArrayLiteralElement>(
@@ -179,6 +446,42 @@ impl FoldingImplementation {
 impl Display for FoldingImplementation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut f = CodeFormatter::new(f, "    ");
+
+        self.write_functions(&mut f)?;
+
+        let mut skip_series_offset = 0;
+
+        for (unicode_plane, starting_code_units) in self.skip_series_list.iter() {
+            let unicode_plane_value = unicode_plane.value();
+            let code_units_length = starting_code_units.len();
+
+            let array_literal = ArrayLiteral::new(starting_code_units, true);
+
+            writeln!(
+                f,
+                "const SKIP_SERIES_LIST_{unicode_plane_value:02X}_OFFSET: u8 = {skip_series_offset};"
+            )?;
+            writeln!(f, "#[rustfmt::skip]")?;
+            writeln!(
+                f,
+                "static SKIP_SERIES_LIST_{unicode_plane_value:02X}: [u16; {code_units_length}] = {array_literal};\n"
+            )?;
+
+            skip_series_offset += starting_code_units.len();
+        }
+
+        if !self.skip_series_end_offsets.is_empty() {
+            let offsets_length = self.skip_series_end_offsets.len();
+
+            let array_literal = ArrayLiteral::new(&self.skip_series_end_offsets, false);
+
+            writeln!(f, "#[rustfmt::skip]")?;
+            writeln!(
+                f,
+                "static SKIP_SERIES_END_OFFSETS: [u8; {offsets_length}] = {array_literal};\n"
+            )?;
+        }
+
         let mut item_offset = 0;
 
         for (unicode_plane, starting_code_units) in self.runs.iter() {
@@ -275,185 +578,6 @@ impl Display for FoldingImplementation {
             "MEDIUM_POSITIVE",
             "u16",
             &mut difference_offset,
-        )?;
-
-        let unicode_planes = BTreeSet::from_iter(chain(
-            self.runs.keys().copied(),
-            self.entries.keys().copied(),
-        ));
-
-        write!(
-            f,
-            "
-            pub fn fold_codepoint(codepoint: u32) -> u32 {{
-                // Handle ASCII range explicitly to optimize for the most common characters
-                if matches!(codepoint, 0x00..=0x7F) {{
-                    return match codepoint {{
-                        0x0041..=0x005A => codepoint + 32,
-                        _ => codepoint,
-                    }};
-                }}
-
-                let unicode_plane = (codepoint >> 16) as u8;
-                let code_unit = codepoint as u16;
-
-                #[rustfmt::skip]
-                let mapped_code_unit = match unicode_plane {{
-            "
-        )?;
-
-        f.indent(2);
-        for unicode_plane in unicode_planes {
-            let unicode_plane_value = unicode_plane.value();
-
-            write!(
-                f,
-                "
-                0x{unicode_plane_value:02X} => {{
-                    translate_code_unit(
-                        code_unit,
-                "
-            )?;
-
-            f.indent(2);
-            if self.runs.contains_key(&unicode_plane) {
-                write!(
-                    f,
-                    "
-                    &RUNS_{unicode_plane_value:02X},
-                    RUNS_{unicode_plane_value:02X}_ITEM_OFFSET as usize,
-                    "
-                )?;
-            } else {
-                write!(
-                    f,
-                    "
-                    &[],
-                    0,
-                    "
-                )?;
-            }
-
-            if self.entries.contains_key(&unicode_plane) {
-                write!(
-                    f,
-                    "
-                    &ENTRIES_{unicode_plane_value:02X},
-                    ENTRIES_{unicode_plane_value:02X}_ITEM_OFFSET as usize
-                    "
-                )?;
-            } else {
-                write!(
-                    f,
-                    "
-                    &[],
-                    0
-                    "
-                )?;
-            }
-            f.dedent(2);
-
-            write!(
-                f,
-                "
-                    )
-                }}
-                "
-            )?;
-        }
-        f.dedent(2);
-
-        write!(
-            f,
-            "
-                    _ => return codepoint,
-                }};
-
-                ((unicode_plane as u32) << 16) | mapped_code_unit as u32
-            }}
-
-            fn translate_code_unit(
-                code_unit: u16,
-                runs: &[u16],
-                runs_item_offset: usize,
-                entries: &[u16],
-                entries_item_offset: usize,
-            ) -> u16 {{
-                let run_index = match runs.binary_search(&code_unit) {{
-                    Ok(run_index) => Some(run_index),
-                    Err(insertion_index) if insertion_index > 0 => {{
-                        let candidate_run_index = insertion_index - 1;
-
-                        // SAFETY: Pre-computed during code generation
-                        let run_end_offset =
-                            unsafe {{ *RUN_END_OFFSETS.get_unchecked(runs_item_offset + candidate_run_index) }};
-
-                        // SAFETY: Pre-computed during code generation
-                        let starting_code_unit = unsafe {{ *runs.get_unchecked(candidate_run_index) }};
-                        let ending_code_unit = starting_code_unit + run_end_offset as u16;
-
-                        if code_unit <= ending_code_unit {{
-                            Some(candidate_run_index)
-                        }} else {{
-                            None
-                        }}
-                    }}
-                    _ => None,
-                }};
-
-                if let Some(run_index) = run_index {{
-                    return apply_difference(code_unit, runs_item_offset + run_index);
-                }}
-
-                match entries.binary_search(&code_unit) {{
-                    Ok(entry_index) => apply_difference(code_unit, entries_item_offset + entry_index),
-                    Err(_) => code_unit,
-                }}
-            }}
-
-            fn apply_difference(code_unit: u16, item_index: usize) -> u16 {{
-                // SAFETY: Pre-computed during code generation
-                let difference_index = unsafe {{ *DIFFERENCE_INDICES.get_unchecked(item_index) }};
-
-                let difference = match difference_index {{
-                    0..SMALL_POSITIVE_DIFFERENCES_START_INDEX => {{
-                        // SAFETY: Pre-computed during code generation
-                        unsafe {{
-                            -(*SMALL_NEGATIVE_DIFFERENCES.get_unchecked(difference_index as usize) as i32)
-                        }}
-                    }}
-
-                    SMALL_POSITIVE_DIFFERENCES_START_INDEX..MEDIUM_NEGATIVE_DIFFERENCES_START_INDEX => {{
-                        // SAFETY: Pre-computed during code generation
-                        unsafe {{
-                            *SMALL_POSITIVE_DIFFERENCES.get_unchecked(
-                                (difference_index - SMALL_POSITIVE_DIFFERENCES_START_INDEX) as usize,
-                            ) as i32
-                        }}
-                    }}
-
-                    MEDIUM_NEGATIVE_DIFFERENCES_START_INDEX..MEDIUM_POSITIVE_DIFFERENCES_START_INDEX => {{
-                        // SAFETY: Pre-computed during code generation
-                        unsafe {{
-                            -(*MEDIUM_NEGATIVE_DIFFERENCES.get_unchecked(
-                                (difference_index - MEDIUM_NEGATIVE_DIFFERENCES_START_INDEX) as usize,
-                            ) as i32)
-                        }}
-                    }}
-
-                    _ => {{
-                        // SAFETY: Pre-computed during code generation
-                        unsafe {{
-                            *MEDIUM_POSITIVE_DIFFERENCES.get_unchecked(
-                                (difference_index - MEDIUM_POSITIVE_DIFFERENCES_START_INDEX) as usize,
-                            ) as i32
-                        }}
-                    }}
-                }};
-
-                (code_unit as i32 + difference) as u16
-            }}
-            "
         )?;
 
         Ok(())

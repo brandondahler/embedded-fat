@@ -37,7 +37,6 @@ fn main() {
         let mut file = BufWriter::new(&mut args.output_file);
 
         write!(&mut file, "{folding_implementation}").unwrap();
-        writeln!(&mut file).unwrap();
         write!(&mut file, "{folding_tests}").unwrap();
     }
 
