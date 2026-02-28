@@ -8,7 +8,7 @@ A FAT filesystem implementation optimized for embedded systems.
 |------------------------|----------------------------------------------------------------------------------------------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `async`                | Adds support for the async API                                                                                 | Enabled | Disabling shrinks the dependency tree and reduces the total code required, this may improve compilation performance if disabled.                                                                                                                                                                                                  |
 | `sync`                 | Adds support for the sync API                                                                                  | Enabled | Disabling reduces total code required, this may slightly improve compilation performance if disabled.                                                                                                                                                                                                                             |
-| `unicode-case-folding` | Enables support for non-ASCII case insensitivity when attempting to find an existing directory or file entries | Enabled | Disabling will reduce the binary size by up to 4KB and improve exact case directory/file matching performance by up to 3x at the cost of no longer supporting non-ASCII case insensitivity.  This may consequently write directory or file entries in a standards non-conforming manner -- disable this feature at your own risk. |
+| `unicode-case-folding` | Enables support for non-ASCII case insensitivity when attempting to find an existing directory or file entries | Enabled | Disabling will reduce the binary size by up to 1KB and improve exact case directory/file matching performance by up to 2x at the cost of no longer supporting non-ASCII case insensitivity.  This may consequently write directory or file entries in a standards non-conforming manner -- disable this feature at your own risk. |
 
 ## License
 Licensed under either of
@@ -18,3 +18,32 @@ Licensed under either of
 
 ### Contribution
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
+
+## Development
+
+### Building
+Gradle is used to orchestrate various build sub-commands.  You don't have to use Gradle to run the various cargo 
+commands -- it just helps automate the various flows.
+
+Common build commands:
+* Build during development -- formats, runs clippy, runs tests, and builds with default features 
+  ```shell
+  ./gradlew devBuild
+  ```
+* Build all configuration combinations -- checks formatting, runs clippy, runs tests, and builds all feature 
+  combinations
+  ```shell
+  ./gradlew build
+  ```
+* Reformat all code
+  ```shell
+  ./gradlew fmt
+  ```
+* Delete all build artifacts
+  ```shell
+  ./gradlew clean
+  ```
+* Regenerate Unicode case folding code -- automatically downloads CaseFolding.txt and runs generator
+  ```shell
+  ./gradlew :unicode_casing_codegen:regenerateUnicodeCasing
+  ```

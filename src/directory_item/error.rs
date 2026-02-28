@@ -1,13 +1,14 @@
+use crate::file_name::LongFileNameError;
 use core::error::Error;
 use core::fmt::{Display, Formatter};
 
 #[derive(Clone, Debug)]
-#[cfg_attr(test, derive(strum::EnumIter))]
 pub enum DirectoryItemError {
     LongNameCorrupted,
     LongNameEntryNumberWrong,
     LongNameEmpty,
     LongNameFirstEntryInvalid,
+    LongNameInvalid(LongFileNameError),
     LongNameOrphaned,
     LongNameShortNameChecksumInconsistent,
     LongNameTooLong,
@@ -33,6 +34,9 @@ impl Display for DirectoryItemError {
                 f,
                 "the first long name directory entry was missing the is_last_entry flag"
             ),
+            DirectoryItemError::LongNameInvalid(error) => {
+                write!(f, "the long name directory entry: {}", error)
+            }
             DirectoryItemError::LongNameOrphaned => {
                 write!(
                     f,
@@ -69,6 +73,12 @@ impl Display for DirectoryItemError {
 
 impl Error for DirectoryItemError {}
 
+impl From<LongFileNameError> for DirectoryItemError {
+    fn from(value: LongFileNameError) -> Self {
+        DirectoryItemError::LongNameInvalid(value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -80,7 +90,21 @@ mod tests {
 
         #[test]
         fn produces_non_empty_value() {
-            for value in DirectoryItemError::iter() {
+            let values = [
+                DirectoryItemError::LongNameCorrupted,
+                DirectoryItemError::LongNameEntryNumberWrong,
+                DirectoryItemError::LongNameEmpty,
+                DirectoryItemError::LongNameFirstEntryInvalid,
+                DirectoryItemError::LongNameInvalid(
+                    LongFileNameError::UnpairedSurrogateEncountered { offset: 0 },
+                ),
+                DirectoryItemError::LongNameOrphaned,
+                DirectoryItemError::LongNameShortNameChecksumInconsistent,
+                DirectoryItemError::LongNameTooLong,
+                DirectoryItemError::ShortNameChecksumMismatch,
+            ];
+
+            for value in values {
                 assert!(
                     !value.to_string().is_empty(),
                     "Display implementation should be non-empty"

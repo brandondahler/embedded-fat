@@ -4,7 +4,7 @@ use bon::Builder;
 pub use error::*;
 
 use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, DirectoryEntryAttributes};
-use crate::encoding::Ucs2Character;
+use crate::encoding::Utf16CodeUnit;
 use crate::file_name::LONG_NAME_MAX_LENGTH;
 use crate::utils::{read_le_u16, write_le_u16};
 
@@ -16,7 +16,7 @@ pub const LONG_NAME_MAX_ENTRY_COUNT: u8 =
 pub struct LongNameDirectoryEntry {
     order_byte: u8,
 
-    ucs2_characters: [Ucs2Character; LONG_NAME_CHARACTERS_PER_ENTRY],
+    utf16_code_units: [Utf16CodeUnit; LONG_NAME_CHARACTERS_PER_ENTRY],
     short_name_checksum: u8,
 }
 
@@ -29,28 +29,21 @@ impl LongNameDirectoryEntry {
             LongNameDirectoryEntryError::EntryNumberInvalid
         );
 
-        let mut ucs2_characters = [Ucs2Character::null(); LONG_NAME_CHARACTERS_PER_ENTRY];
-        for (character_index, ucs2_character) in ucs2_characters.iter_mut().enumerate() {
+        let mut utf16_code_units = [0; LONG_NAME_CHARACTERS_PER_ENTRY];
+        for (character_index, utf16_code_unit) in utf16_code_units.iter_mut().enumerate() {
             let byte_index = match character_index {
                 0..5 => (character_index * 2) + 1,
                 5..11 => ((character_index - 5) * 2) + 14,
                 _ => ((character_index - 11) * 2) + 28,
             };
 
-            let ucs2_character_codepoint = read_le_u16(bytes, byte_index);
-
-            *ucs2_character = Ucs2Character::from_u16(ucs2_character_codepoint).ok_or(
-                LongNameDirectoryEntryError::NameCharacterInvalid {
-                    character: ucs2_character_codepoint,
-                    offset: character_index as u8,
-                },
-            )?;
+            *utf16_code_unit = read_le_u16(bytes, byte_index);
         }
 
         Ok(Self {
             order_byte: bytes[0],
 
-            ucs2_characters,
+            utf16_code_units,
             short_name_checksum: bytes[13],
         })
     }
@@ -67,37 +60,37 @@ impl LongNameDirectoryEntry {
         self.short_name_checksum
     }
 
-    pub fn ucs2_characters(&self) -> &[Ucs2Character; LONG_NAME_CHARACTERS_PER_ENTRY] {
-        &self.ucs2_characters
+    pub fn utf16_code_units(&self) -> &[Utf16CodeUnit; LONG_NAME_CHARACTERS_PER_ENTRY] {
+        &self.utf16_code_units
     }
 
     pub fn write(&self, mut bytes: &mut [u8; DIRECTORY_ENTRY_SIZE]) {
         bytes[0] = self.order_byte;
 
-        for ucs2_character_index in 0..5 {
+        for utf16_code_unit_index in 0..5 {
             write_le_u16(
                 bytes,
-                1 + (2 * ucs2_character_index),
-                self.ucs2_characters[ucs2_character_index].to_u16(),
+                1 + (2 * utf16_code_unit_index),
+                self.utf16_code_units[utf16_code_unit_index],
             );
         }
 
         bytes[11] |= DirectoryEntryAttributes::LongName.bits();
         bytes[13] = self.short_name_checksum;
 
-        for ucs2_character_index in 5..11 {
+        for utf16_code_unit_index in 5..11 {
             write_le_u16(
                 bytes,
-                14 + (2 * (ucs2_character_index - 5)),
-                self.ucs2_characters[ucs2_character_index].to_u16(),
+                14 + (2 * (utf16_code_unit_index - 5)),
+                self.utf16_code_units[utf16_code_unit_index],
             );
         }
 
-        for ucs2_character_index in 11..13 {
+        for utf16_code_unit_index in 11..13 {
             write_le_u16(
                 bytes,
-                28 + (2 * (ucs2_character_index - 11)),
-                self.ucs2_characters[ucs2_character_index].to_u16(),
+                28 + (2 * (utf16_code_unit_index - 11)),
+                self.utf16_code_units[utf16_code_unit_index],
             );
         }
     }
@@ -134,9 +127,9 @@ mod tests {
                 "short_name_checksum should be parsed correctly"
             );
             assert_eq!(
-                entry.ucs2_characters(),
-                &test_data.name_characters,
-                "ucs2_characters should be parsed correctly"
+                entry.utf16_code_units(),
+                &test_data.name_utf16_code_units,
+                "utf16_code_units should be parsed correctly"
             );
         }
 
@@ -167,24 +160,6 @@ mod tests {
                 "EntryNumberInvalid should be returned"
             );
         }
-
-        #[test]
-        fn character_invalid_returns_err() {
-            let mut data = TestData::valid().bytes;
-            data[3] = 0x00;
-            data[4] = 0xD8;
-
-            let error =
-                LongNameDirectoryEntry::from_bytes(&mut data).expect_err("Err should be returned");
-
-            assert!(matches!(
-                error,
-                LongNameDirectoryEntryError::NameCharacterInvalid {
-                    character: 0xD800,
-                    offset: 1
-                }
-            ));
-        }
     }
 
     mod write {
@@ -208,7 +183,7 @@ mod tests {
         is_last_entry: bool,
         entry_number: u8,
         short_name_checksum: u8,
-        name_characters: [Ucs2Character; LONG_NAME_CHARACTERS_PER_ENTRY],
+        name_utf16_code_units: [Utf16CodeUnit; LONG_NAME_CHARACTERS_PER_ENTRY],
     }
 
     impl TestData {
@@ -255,11 +230,10 @@ mod tests {
                 is_last_entry: true,
                 entry_number: 1,
                 short_name_checksum: 0x12,
-                name_characters: [
+                name_utf16_code_units: [
                     0x0066, 0x006F, 0x006F, 0x716B, 0x2136, 0x18CC, 0x5F92, 0xB299, 0xD4B3, 0x6033,
                     0xC30C, 0x0000, 0xFFFF,
-                ]
-                .map(|codepoint| Ucs2Character::from_u16(codepoint).unwrap()),
+                ],
             }
         }
     }

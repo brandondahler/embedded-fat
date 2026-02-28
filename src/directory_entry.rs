@@ -65,7 +65,6 @@ impl From<ShortNameDirectoryEntry> for DirectoryEntry {
 mod tests {
     use super::*;
     use crate::AsciiOnlyEncoder;
-    use crate::encoding::Ucs2Character;
     use crate::file_name::ShortFileName;
 
     mod from_bytes {
@@ -135,13 +134,12 @@ mod tests {
 
         #[test]
         fn long_name_parsed_correctly() {
-            let mut ucs2_characters =
-                [Ucs2Character::from_u16(0xFFFF).unwrap(); LONG_NAME_CHARACTERS_PER_ENTRY];
-            ucs2_characters[0] = Ucs2Character::from_char('A').unwrap();
-            ucs2_characters[1] = Ucs2Character::null();
+            let mut utf16_code_units = [0xFFFF; LONG_NAME_CHARACTERS_PER_ENTRY];
+            utf16_code_units[0] = 'A' as u16;
+            utf16_code_units[1] = 0;
 
             let long_name_entry = LongNameDirectoryEntry::builder()
-                .ucs2_characters(ucs2_characters)
+                .utf16_code_units(utf16_code_units)
                 .order_byte(0x01)
                 .short_name_checksum(0x00)
                 .build();

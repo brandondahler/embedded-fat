@@ -24,10 +24,6 @@ strum = { version = "0.27", features = ["derive"] }
 tokio = { version = "1", features = ["macros", "rt"] }
 
 [[bench]]
-name = "ucs2_character_case_folding"
-harness = false
-
-[[bench]]
 name = "unicode_case_folding"
 harness = false
 

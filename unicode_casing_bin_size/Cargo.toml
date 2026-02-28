@@ -7,7 +7,6 @@ edition = "2024"
 [features]
 default = []
 
-ucs2 = []
 unicode = []
 
 [dependencies]

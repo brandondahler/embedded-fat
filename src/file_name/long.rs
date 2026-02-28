@@ -1,47 +1,38 @@
-use crate::encoding::Ucs2Character;
+use crate::encoding::{Utf16CodeUnit, Utf16String, Utf16StringError, Utf16StringInputError};
+use core::fmt::{Display, Formatter};
 
 pub const LONG_NAME_MAX_LENGTH: usize = 255;
 
-#[derive(Clone, Debug, Eq)]
+#[derive(Clone, Debug)]
 pub struct LongFileName {
-    ucs2_characters: [Ucs2Character; LONG_NAME_MAX_LENGTH],
+    utf16_string: Utf16String<LONG_NAME_MAX_LENGTH>,
 }
 
 impl LongFileName {
-    pub fn new(ucs2_characters: [Ucs2Character; LONG_NAME_MAX_LENGTH]) -> Self {
-        LongFileName { ucs2_characters }
+    pub fn new(
+        utf16_code_units: [Utf16CodeUnit; LONG_NAME_MAX_LENGTH],
+    ) -> Result<Self, LongFileNameError> {
+        let utf16_string = Utf16String::new(utf16_code_units)?;
+
+        Ok(LongFileName { utf16_string })
     }
 
-    pub fn from_str(name: &str) -> Result<LongFileName, LongFileNameError> {
-        ensure!(!name.is_empty(), LongFileNameError::InputEmpty);
+    pub fn from_str(name: &str) -> Result<Self, LongFileNameStringError> {
+        ensure!(!name.is_empty(), LongFileNameStringError::InputEmpty);
 
-        let mut ucs2_characters = [Ucs2Character::null(); LONG_NAME_MAX_LENGTH];
         for (character_index, character) in name.chars().enumerate() {
             ensure!(
-                character_index < LONG_NAME_MAX_LENGTH,
-                LongFileNameError::InputTooLong
-            );
-
-            ensure!(
                 Self::is_valid_character(character),
-                LongFileNameError::CharacterInvalid {
+                LongFileNameStringError::CharacterInvalid {
                     character,
                     offset: character_index as u8
                 }
             );
-
-            ucs2_characters[character_index] =
-                Ucs2Character::from_char(character).ok_or(LongFileNameError::CharacterInvalid {
-                    character,
-                    offset: character_index as u8,
-                })?;
         }
 
-        Ok(Self::new(ucs2_characters))
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.ucs2_characters[0] == Ucs2Character::null()
+        Ok(Self {
+            utf16_string: Utf16String::from_str(name)?,
+        })
     }
 
     fn is_valid_character(character: char) -> bool {
@@ -54,35 +45,52 @@ impl LongFileName {
 
 impl PartialEq for LongFileName {
     fn eq(&self, other: &Self) -> bool {
-        let mut left_chars = self.ucs2_characters.iter();
-        let mut right_chars = other.ucs2_characters.iter();
+        self.utf16_string.eq_ignore_case(&other.utf16_string)
+    }
+}
 
-        loop {
-            let left_char = left_chars.next();
-            let right_char = right_chars.next();
+impl Eq for LongFileName {}
 
-            match (left_char, right_char) {
-                (Some(_), None) | (None, Some(_)) => return false,
-                (None, None) => return true,
-                (Some(l), Some(r)) => {
-                    if !l.eq_ignore_case(r) {
-                        return false;
-                    }
+#[derive(Clone, Debug)]
+pub enum LongFileNameError {
+    UnpairedSurrogateEncountered { offset: u8 },
+}
 
-                    if *l == Ucs2Character::null() {
-                        return true;
-                    }
-                }
+impl Display for LongFileNameError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        match self {
+            LongFileNameError::UnpairedSurrogateEncountered { offset } => {
+                write!(f, "unpaired surrogate encountered at offset {}", offset)
             }
         }
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum LongFileNameError {
+impl From<Utf16StringError> for LongFileNameError {
+    fn from(value: Utf16StringError) -> Self {
+        match value {
+            Utf16StringError::UnpairedSurrogateEncountered {
+                index: code_unit_offset,
+            } => LongFileNameError::UnpairedSurrogateEncountered {
+                offset: code_unit_offset as u8,
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LongFileNameStringError {
     CharacterInvalid { character: char, offset: u8 },
     InputEmpty,
     InputTooLong,
+}
+
+impl From<Utf16StringInputError> for LongFileNameStringError {
+    fn from(value: Utf16StringInputError) -> Self {
+        match value {
+            Utf16StringInputError::TooLong => LongFileNameStringError::InputTooLong,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -95,35 +103,19 @@ mod tests {
 
         #[test]
         fn basic_input_parsed_correctly() {
-            let mut expected_characters = [Ucs2Character::null(); LONG_NAME_MAX_LENGTH];
-            expected_characters[0] = Ucs2Character::from_char('f').unwrap();
-            expected_characters[1] = Ucs2Character::from_char('o').unwrap();
-            expected_characters[2] = Ucs2Character::from_char('o').unwrap();
+            let mut expected_characters = [0; LONG_NAME_MAX_LENGTH];
+            expected_characters[0] = 'f' as u16;
+            expected_characters[1] = 'o' as u16;
+            expected_characters[2] = 'o' as u16;
 
             let long_file_name =
                 LongFileName::from_str("foo").expect("Name should parse successfully");
 
             assert_eq!(
-                long_file_name.ucs2_characters, expected_characters,
+                long_file_name.utf16_string,
+                Utf16String::new(expected_characters).unwrap(),
                 "Characters should match expected result"
             );
-        }
-
-        #[test]
-        fn advanced_input_parsed_successfully() {
-            // NOTE: Test input is the maximum number of random but valid Unicode characters in the
-            //   \u{0000} to \u{FFFF} range.
-            let long_file_name =
-                LongFileName::from_str("\u{2B00}\u{152C}\u{A657}\u{F4BA}\u{5CE1}\u{5176}\u{98AD}\u{3007}\u{9ABA}\u{3D0B}\u{7FD8}\u{25AE}\u{7D16}\u{D6ED}\u{185A}\u{01CC}\u{8D73}\u{7B87}\u{6278}\u{BD97}\u{8B1C}\u{FCE6}\u{1DC1}\u{EA56}\u{8069}\u{27FE}\u{9A4A}\u{F822}\u{2020}\u{214C}\u{4D36}\u{7B98}\u{EFD4}\u{0056}\u{B0E7}\u{D183}\u{4CD2}\u{EC8B}\u{6C1D}\u{0B5A}\u{E207}\u{B171}\u{FC7B}\u{0627}\u{54B1}\u{CFEC}\u{CC93}\u{180E}\u{688E}\u{94EA}\u{45BD}\u{F01E}\u{627C}\u{46A4}\u{FC42}\u{4ADA}\u{87B8}\u{971D}\u{8F04}\u{5F15}\u{B66A}\u{730A}\u{0DEC}\u{7D83}\u{ABB6}\u{D749}\u{775E}\u{D307}\u{FD0F}\u{1542}\u{9277}\u{5F4A}\u{2B53}\u{1DE2}\u{3BD1}\u{0265}\u{B1E2}\u{F270}\u{2E75}\u{822E}\u{9DC8}\u{FF27}\u{E054}\u{EBFF}\u{EF5E}\u{C17A}\u{F321}\u{9B3A}\u{E26E}\u{7807}\u{E017}\u{C91A}\u{5640}\u{9352}\u{3494}\u{A645}\u{0258}\u{5CE0}\u{412E}\u{B5ED}\u{6CCE}\u{375E}\u{9F9E}\u{572F}\u{34B4}\u{2C2E}\u{4518}\u{6477}\u{804E}\u{1C61}\u{BA79}\u{3048}\u{E0F7}\u{0EA8}\u{B2CD}\u{5300}\u{68BB}\u{C34D}\u{458B}\u{8D84}\u{C18A}\u{221D}\u{F6FB}\u{2192}\u{3724}\u{4209}\u{7E2D}\u{4A78}\u{CD93}\u{F733}\u{3001}\u{25DE}\u{860C}\u{9346}\u{8BEF}\u{80C0}\u{BFFA}\u{BBD6}\u{5A56}\u{1B56}\u{7784}\u{D3D0}\u{0E46}\u{9C11}\u{920B}\u{B7D5}\u{4AD9}\u{83C9}\u{742D}\u{1F58}\u{4DA1}\u{8630}\u{B984}\u{221F}\u{5802}\u{F3FA}\u{1420}\u{44AC}\u{951A}\u{1627}\u{27DD}\u{5E80}\u{FD87}\u{2706}\u{2579}\u{3F3A}\u{2B4A}\u{BDDB}\u{D7E7}\u{17D9}\u{1530}\u{90BC}\u{9838}\u{9874}\u{9E1A}\u{376F}\u{E43C}\u{3B81}\u{9A67}\u{CB2A}\u{7849}\u{3270}\u{7B73}\u{1AB7}\u{61D7}\u{68E1}\u{E922}\u{B422}\u{F178}\u{33FC}\u{3400}\u{23EE}\u{CCE0}\u{F2CD}\u{B967}\u{3328}\u{66CF}\u{13E3}\u{C20F}\u{1FB7}\u{D371}\u{2068}\u{5D7A}\u{2D65}\u{1A3F}\u{F12A}\u{C4D1}\u{D025}\u{6CB4}\u{1CAA}\u{FD7E}\u{3A95}\u{3544}\u{3589}\u{FF9F}\u{274A}\u{EF4D}\u{F182}\u{A386}\u{89FD}\u{47D4}\u{9D2E}\u{24F5}\u{7ACF}\u{8D8A}\u{EB6C}\u{7441}\u{B9F8}\u{0378}\u{E34F}\u{A038}\u{E6E6}\u{F1DF}\u{403A}\u{8A96}\u{9745}\u{8CA8}\u{EAE1}\u{A808}\u{20B0}\u{77E6}\u{0CA7}\u{61EC}\u{5416}\u{F5B6}\u{3E9E}\u{F63D}\u{ED25}\u{4304}\u{3485}\u{5CAB}\u{A9D5}\u{FDC9}\u{3BA6}\u{32DA}")
-                    .expect("Name should parse successfully");
-
-            for (character_index, character) in long_file_name.ucs2_characters.iter().enumerate() {
-                assert_ne!(
-                    *character,
-                    Ucs2Character::null(),
-                    "Character {character_index} should not be null"
-                );
-            }
         }
 
         #[test]
@@ -131,7 +123,7 @@ mod tests {
             let result = LongFileName::from_str("").expect_err("Err should be returned");
 
             assert!(
-                matches!(result, LongFileNameError::InputEmpty),
+                matches!(result, LongFileNameStringError::InputEmpty),
                 "Returned error should be InputEmpty"
             );
         }
@@ -141,8 +133,9 @@ mod tests {
             let result =
                 LongFileName::from_str(&"a".repeat(256)).expect_err("Err should be returned");
 
-            assert!(
-                matches!(result, LongFileNameError::InputTooLong),
+            assert_eq!(
+                result,
+                LongFileNameStringError::InputTooLong,
                 "Returned error should be InputTooLong"
             );
         }
@@ -163,7 +156,7 @@ mod tests {
                 assert!(
                     matches!(
                         result,
-                        LongFileNameError::CharacterInvalid {
+                        LongFileNameStringError::CharacterInvalid {
                             character: invalid_character,
                             offset: 0
                         }
@@ -172,49 +165,6 @@ mod tests {
                     invalid_character as u16
                 );
             }
-        }
-
-        #[test]
-        fn invalid_encoding_character_returns_error() {
-            let input = "\u{10000}";
-
-            let result = LongFileName::from_str(&input).expect_err("Err should be returned");
-
-            assert!(
-                matches!(
-                    result,
-                    LongFileNameError::CharacterInvalid {
-                        character: '\u{10000}',
-                        offset: 0
-                    }
-                ),
-                "CharacterInvalid should be returned",
-            );
-        }
-    }
-
-    mod is_empty {
-        use super::*;
-
-        #[test]
-        fn empty_input_returns_true() {
-            let long_file_name = LongFileName::new([Ucs2Character::null(); LONG_NAME_MAX_LENGTH]);
-
-            assert!(
-                long_file_name.is_empty(),
-                "Value should be considered empty"
-            );
-        }
-
-        #[test]
-        fn non_empty_input_returns_false() {
-            let long_file_name =
-                LongFileName::from_str("a").expect("Provided string should be valid");
-
-            assert!(
-                !long_file_name.is_empty(),
-                "Value should not be considered empty"
-            );
         }
     }
 

@@ -2,10 +2,10 @@ use crate::directory_entry::{
     LONG_NAME_CHARACTERS_PER_ENTRY, LongNameDirectoryEntry, ShortNameDirectoryEntry,
 };
 use crate::directory_item::{DirectoryItem, DirectoryItemError};
-use crate::encoding::Ucs2Character;
+use crate::encoding::Utf16CodeUnit;
 use crate::file_name::{LONG_NAME_MAX_LENGTH, LongFileName};
 
-const LONG_NAME_PADDING_CHARACTER: Ucs2Character = Ucs2Character::from_u16(0xFFFF).unwrap();
+const LONG_NAME_PADDING_CHARACTER: Utf16CodeUnit = 0xFFFF;
 const LONG_NAME_MAX_ENTRY_COUNT: u8 =
     LONG_NAME_MAX_LENGTH.div_ceil(LONG_NAME_CHARACTERS_PER_ENTRY) as u8;
 
@@ -13,7 +13,7 @@ const LONG_NAME_MAX_ENTRY_COUNT: u8 =
 pub struct DirectoryItemBuilder {
     current_entry_index: u8,
 
-    long_name: [Ucs2Character; LONG_NAME_MAX_LENGTH],
+    long_name: [Utf16CodeUnit; LONG_NAME_MAX_LENGTH],
     long_name_state: Option<LongNameState>,
 }
 
@@ -37,7 +37,7 @@ impl DirectoryItemBuilder {
         Self {
             current_entry_index: 0,
 
-            long_name: [Ucs2Character::null(); LONG_NAME_MAX_LENGTH],
+            long_name: [0; LONG_NAME_MAX_LENGTH],
             long_name_state: None,
         }
     }
@@ -72,8 +72,8 @@ impl DirectoryItemBuilder {
         let long_name_offset = (entry.entry_number() - 1) as usize * LONG_NAME_CHARACTERS_PER_ENTRY;
         let mut null_encountered = false;
 
-        for (character_index, character) in entry.ucs2_characters().iter().enumerate() {
-            if *character == Ucs2Character::null() {
+        for (character_index, character) in entry.utf16_code_units().iter().enumerate() {
+            if *character == 0 {
                 ensure!(
                     self.current_entry_index == 0,
                     DirectoryItemError::LongNameCorrupted
@@ -123,7 +123,7 @@ impl DirectoryItemBuilder {
                     DirectoryItemError::ShortNameChecksumMismatch
                 );
 
-                Some(LongFileName::new(self.long_name))
+                Some(LongFileName::new(self.long_name)?)
             }
             None => None,
         };
