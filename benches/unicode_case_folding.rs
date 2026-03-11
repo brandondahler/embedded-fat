@@ -4,8 +4,7 @@ use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 #[path = "../src/encoding/unicode/case_folding.rs"]
 mod unicode_case_folding;
 
-use unicode_case_folding::fold_codepoint;
-use unicode_case_folding::tests::unoptimized_fold_codepoint;
+use unicode_case_folding::{fold_codepoint, unoptimized_fold_codepoint};
 
 fn criterion_benchmark(c: &mut Criterion) {
     let characters = [

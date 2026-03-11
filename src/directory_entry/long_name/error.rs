@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use crate::directory_entry::LONG_NAME_MAX_ENTRY_COUNT;
 use core::error::Error;
 use core::fmt::{Display, Formatter};
@@ -21,25 +24,3 @@ impl Display for LongNameDirectoryEntryError {
 }
 
 impl Error for LongNameDirectoryEntryError {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use alloc::string::ToString;
-
-    mod display {
-        use super::*;
-
-        #[test]
-        fn produces_non_empty_value() {
-            let values = [LongNameDirectoryEntryError::EntryNumberInvalid];
-
-            for value in values {
-                assert!(
-                    !value.to_string().is_empty(),
-                    "Display implementation should be non-empty"
-                );
-            }
-        }
-    }
-}

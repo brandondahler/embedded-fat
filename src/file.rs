@@ -1,5 +1,8 @@
 mod error;
 
+#[cfg(test)]
+mod tests;
+
 pub use error::*;
 
 use crate::Device;

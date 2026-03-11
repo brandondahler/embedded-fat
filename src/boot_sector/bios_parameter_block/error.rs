@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use core::error::Error;
 use core::fmt::{Display, Formatter};
 
@@ -75,27 +78,6 @@ impl Display for BiosParameterBlockError {
             }
             BiosParameterBlockError::TotalSectorCountNotSet => {
                 write!(f, "Either BPB_TotSec16 or BPB_TotSec32 must be non-zero")
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use alloc::string::ToString;
-    use strum::IntoEnumIterator;
-
-    mod display {
-        use super::*;
-
-        #[test]
-        fn produces_non_empty_value() {
-            for value in BiosParameterBlockError::iter() {
-                assert!(
-                    !value.to_string().is_empty(),
-                    "Display implementation should be non-empty"
-                );
             }
         }
     }

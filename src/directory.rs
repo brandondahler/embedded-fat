@@ -1,10 +1,9 @@
-mod entry_iteration_error;
-mod entry_iterator;
 mod file;
 mod table;
 
-pub use entry_iteration_error::*;
-pub use entry_iterator::*;
+#[cfg(test)]
+mod tests;
+
 pub use file::*;
 pub use table::*;
 

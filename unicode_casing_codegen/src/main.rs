@@ -1,13 +1,13 @@
 mod case_folding_file;
 mod code;
 mod folding_implementation;
-mod folding_tests;
+mod folding_test_support;
 mod processed_mappings;
 mod types;
 
 use crate::case_folding_file::CaseFoldingFile;
 use crate::folding_implementation::FoldingImplementation;
-use crate::folding_tests::FoldingTests;
+use crate::folding_test_support::FoldingTestSupport;
 use crate::processed_mappings::ProcessedMappings;
 use clap::Parser;
 use clio::{Input, Output};
@@ -31,13 +31,13 @@ fn main() {
     let processed_mappings = ProcessedMappings::new(&parsed_mappings);
 
     let folding_implementation = FoldingImplementation::new(processed_mappings);
-    let folding_tests = FoldingTests::new(&parsed_mappings);
+    let folding_test_support = FoldingTestSupport::new(&parsed_mappings);
 
     {
         let mut file = BufWriter::new(&mut args.output_file);
 
         write!(&mut file, "{folding_implementation}").unwrap();
-        write!(&mut file, "{folding_tests}").unwrap();
+        write!(&mut file, "{folding_test_support}").unwrap();
     }
 
     args.output_file.finish().unwrap();

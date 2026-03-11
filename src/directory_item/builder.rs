@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use crate::directory_entry::{
     LONG_NAME_CHARACTERS_PER_ENTRY, LongNameDirectoryEntry, ShortNameDirectoryEntry,
 };

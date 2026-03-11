@@ -3,6 +3,9 @@ mod error;
 mod iteration_error;
 mod iterator;
 
+#[cfg(test)]
+mod tests;
+
 pub use builder::*;
 pub use error::*;
 pub use iteration_error::*;

@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use crate::BiosParameterBlockError;
 use core::error::Error;
 use core::fmt::{Display, Formatter};
@@ -77,37 +80,6 @@ where
         match value {
             ReadExactError::Other(stream_error) => stream_error.into(),
             ReadExactError::UnexpectedEof => Self::StreamEndReached,
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use alloc::string::ToString;
-
-    mod display {
-        use super::*;
-        use crate::mock::IoError;
-
-        #[test]
-        fn produces_non_empty_value() {
-            let values = [
-                FileSystemError::DeviceError(IoError::default()),
-                FileSystemError::InvalidFatSignature,
-                FileSystemError::InvalidBiosParameterBlock(
-                    BiosParameterBlockError::AllocationTableCountInvalid,
-                ),
-                FileSystemError::StreamEndReached,
-                FileSystemError::StreamError(IoError::default()),
-            ];
-
-            for value in values {
-                assert!(
-                    !value.to_string().is_empty(),
-                    "Display implementation should be non-empty"
-                );
-            }
         }
     }
 }

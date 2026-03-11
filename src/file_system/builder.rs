@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use crate::directory_item::DeviceDirectoryItemIterationError;
 use crate::{
     AsciiOnlyEncoder, CodePageEncoder, Device, FileSystem, FileSystemError, SingleAccessDevice,

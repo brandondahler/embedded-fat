@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use crate::allocation_table::AllocationTable;
 use crate::device::Device;
 use crate::directory_entry::DirectoryFileEntryIterator;

@@ -1,8 +1,10 @@
 mod builder;
 mod error;
 
+#[cfg(test)]
+mod tests;
+
 pub use builder::*;
-use core::error::Error;
 pub use error::*;
 
 use crate::Device;
@@ -11,6 +13,7 @@ use crate::boot_sector::BiosParameterBlock;
 use crate::directory::{Directory, DirectoryFile, DirectoryTable};
 use crate::directory_item::{DeviceDirectoryItemIterationError, DirectoryItem};
 use crate::{AllocationTableKind, CodePageEncoder, File};
+use core::error::Error;
 use embedded_io::{ErrorType, SeekFrom};
 
 #[cfg(feature = "sync")]
