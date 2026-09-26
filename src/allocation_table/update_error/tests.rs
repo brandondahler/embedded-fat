@@ -1,5 +1,7 @@
 use super::*;
+use crate::mock::IoError;
 use alloc::string::ToString;
+use core::fmt::Debug;
 
 mod display {
     use super::*;
@@ -7,12 +9,8 @@ mod display {
     #[test]
     fn produces_non_empty_value() {
         let values = [
-            ShortNameDirectoryEntryError::FirstClusterNumberInvalid,
-            ShortNameDirectoryEntryError::FileSizeInvalid,
-            ShortNameDirectoryEntryError::NameInvalid(ShortFileNameError::CharacterInvalid {
-                character: 0,
-                offset: 0,
-            }),
+            AllocationTableUpdateError::StreamEndReached,
+            AllocationTableUpdateError::StreamError(IoError::default()),
         ];
 
         for value in values {

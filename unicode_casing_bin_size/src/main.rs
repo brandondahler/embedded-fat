@@ -3,13 +3,13 @@
 mod unicode_case_folding;
 
 #[cfg(feature = "unicode")]
-use crate::unicode_case_folding::fold_codepoint;
+use crate::unicode_case_folding::fold_character;
 
 fn main() {
-    for i in 0..=0x10_FFFFu32 {
+    for i in char::MIN..=char::MAX {
         println!("{}", i);
 
         #[cfg(feature = "unicode")]
-        println!("{}", fold_codepoint(i));
+        println!("{}", fold_character(i));
     }
 }

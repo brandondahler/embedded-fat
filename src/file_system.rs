@@ -155,6 +155,7 @@ where
         let allocation_table = AllocationTable::new(
             bios_parameter_block.allocation_table_kind(),
             bios_parameter_block.allocation_table_base_address(),
+            bios_parameter_block.last_cluster_number(),
         );
 
         Ok(Self {
@@ -238,6 +239,7 @@ where
         let allocation_table = AllocationTable::new(
             bios_parameter_block.allocation_table_kind(),
             bios_parameter_block.allocation_table_base_address(),
+            bios_parameter_block.last_cluster_number(),
         );
 
         Ok(Self {

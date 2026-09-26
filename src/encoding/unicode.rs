@@ -1,14 +1,18 @@
 #[cfg(feature = "unicode-case-folding")]
 mod case_folding;
 
-#[cfg(feature = "unicode-case-folding")]
-#[cfg(test)]
+#[cfg(all(test, feature = "unicode-case-folding"))]
 mod case_folding_tests;
 
-mod utf16_codepoints;
-mod utf16_string;
+#[cfg(feature = "unicode-case-folding")]
+pub use case_folding::*;
 
-pub use utf16_codepoints::*;
-pub use utf16_string::*;
-
-pub type Utf16CodeUnit = u16;
+#[cfg(not(feature = "unicode-case-folding"))]
+#[inline]
+pub fn fold_character(character: char) -> char {
+    if matches!(character, '\x41'..='\x5A') {
+        ((character as u8) + 32) as char
+    } else {
+        character
+    }
+}

@@ -2,7 +2,7 @@ use core::error::Error;
 use core::fmt::{Display, Formatter};
 use embedded_io::ErrorKind;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IoError(pub ErrorKind);
 
 impl Default for IoError {

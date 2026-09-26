@@ -5,7 +5,7 @@ use crate::file_name::ShortFileNameError;
 use core::error::Error;
 use core::fmt::{Display, Formatter};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ShortNameDirectoryEntryError {
     FirstClusterNumberInvalid,
     FileSizeInvalid,

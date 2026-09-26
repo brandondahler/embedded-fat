@@ -177,12 +177,14 @@ impl FoldingImplementation {
         write!(
             f,
             "
-            pub fn fold_codepoint(codepoint: u32) -> u32 {{
+            pub fn fold_character(character: char) -> char {{
+                let codepoint = character as u32;
+
                 // Handle ASCII range explicitly to optimize for the most common characters
-                if matches!(codepoint, 0x00..=0x7F) {{
-                    return match codepoint {{
-                        0x0041..=0x005A => codepoint + 32,
-                        _ => codepoint,
+                if matches!(character, '\\x00'..='\\x7F') {{
+                    return match character {{
+                        '\\x41'..='\\x5A' => (character as u8 + 32) as char,
+                        _ => character,
                     }};
                 }}
 
@@ -277,10 +279,11 @@ impl FoldingImplementation {
         write!(
             f,
             "
-                    _ => return codepoint,
+                    _ => return character,
                 }};
 
-                ((unicode_plane as u32) << 16) | mapped_code_unit as u32
+                // SAFETY: Source guarantees that it is a valid value
+                unsafe {{ char::from_u32_unchecked(((unicode_plane as u32) << 16) | mapped_code_unit as u32) }}
             }}
 
             #[inline(always)]

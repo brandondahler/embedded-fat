@@ -1,5 +1,9 @@
+mod error;
+
 #[cfg(test)]
 mod tests;
+
+pub use error::*;
 
 use crate::AllocationTableKind;
 use crate::allocation_table::AllocationTableEntry;
@@ -15,11 +19,11 @@ impl PhysicalAllocationTableEntry {
     pub fn new(
         table_kind: AllocationTableKind,
         value: u32,
-    ) -> Result<PhysicalAllocationTableEntry, ()> {
+    ) -> Result<PhysicalAllocationTableEntry, PhysicalAllocationTableEntryError> {
         if value <= table_kind.entry_mask() {
             Ok(Self { table_kind, value })
         } else {
-            Err(())
+            Err(PhysicalAllocationTableEntryError::ValueInvalid(value))
         }
     }
 

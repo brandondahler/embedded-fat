@@ -1,5 +1,4 @@
 use super::*;
-use crate::mock::IoError;
 use alloc::string::ToString;
 use core::fmt::Debug;
 
@@ -8,10 +7,7 @@ mod display {
 
     #[test]
     fn produces_non_empty_value() {
-        let values = [
-            AllocationTableError::StreamEndReached,
-            AllocationTableError::StreamError(IoError::default()),
-        ];
+        let values = [PhysicalAllocationTableEntryError::ValueInvalid(1)];
 
         for value in values {
             assert!(

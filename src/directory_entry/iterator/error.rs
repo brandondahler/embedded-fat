@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests;
 
-use crate::allocation_table::AllocationTableError;
+use crate::allocation_table::AllocationTableReadError;
 use crate::directory_entry::DirectoryEntryError;
 use core::error::Error;
 use core::fmt::{Display, Formatter};
@@ -63,15 +63,15 @@ where
     }
 }
 
-impl<DE, SE> From<AllocationTableError<SE>> for DirectoryEntryIterationError<DE, SE>
+impl<DE, SE> From<AllocationTableReadError<SE>> for DirectoryEntryIterationError<DE, SE>
 where
     DE: Error,
     SE: embedded_io::Error,
 {
-    fn from(value: AllocationTableError<SE>) -> Self {
+    fn from(value: AllocationTableReadError<SE>) -> Self {
         match value {
-            AllocationTableError::StreamEndReached => Self::StreamEndReached,
-            AllocationTableError::StreamError(device_error) => Self::StreamError(device_error),
+            AllocationTableReadError::StreamEndReached => Self::StreamEndReached,
+            AllocationTableReadError::StreamError(device_error) => Self::StreamError(device_error),
         }
     }
 }

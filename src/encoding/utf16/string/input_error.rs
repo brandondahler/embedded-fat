@@ -1,8 +1,10 @@
 #[cfg(test)]
 mod tests;
 
+use crate::encoding::Utf16EncodeError;
 use core::error::Error;
 use core::fmt::{Display, Formatter};
+use core::str::EncodeUtf16;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Utf16StringInputError {
@@ -20,3 +22,11 @@ impl Display for Utf16StringInputError {
 }
 
 impl Error for Utf16StringInputError {}
+
+impl From<Utf16EncodeError> for Utf16StringInputError {
+    fn from(value: Utf16EncodeError) -> Self {
+        match value {
+            Utf16EncodeError::OutputTooSmall => Utf16StringInputError::TooLong,
+        }
+    }
+}

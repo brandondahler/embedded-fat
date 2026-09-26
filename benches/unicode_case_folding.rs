@@ -4,7 +4,7 @@ use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 #[path = "../src/encoding/unicode/case_folding.rs"]
 mod unicode_case_folding;
 
-use unicode_case_folding::{fold_codepoint, unoptimized_fold_codepoint};
+use unicode_case_folding::{fold_character, unoptimized_fold_character};
 
 fn criterion_benchmark(c: &mut Criterion) {
     let characters = [
@@ -29,13 +29,13 @@ fn criterion_benchmark(c: &mut Criterion) {
 
         group.bench_with_input(
             BenchmarkId::new("Optimized", &full_description),
-            &character_code,
-            |b, &input| b.iter(|| fold_codepoint(input)),
+            &character,
+            |b, &input| b.iter(|| fold_character(input)),
         );
         group.bench_with_input(
             BenchmarkId::new("Unoptimized", &full_description),
-            &character_code,
-            |b, &input| b.iter(|| unoptimized_fold_codepoint(input)),
+            &character,
+            |b, &input| b.iter(|| unoptimized_fold_character(input)),
         );
     }
     group.finish();

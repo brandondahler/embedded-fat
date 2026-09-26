@@ -1,7 +1,9 @@
 #[cfg(test)]
 mod tests;
 
-use crate::allocation_table::{AllocationTableKind, PhysicalAllocationTableEntry};
+use crate::allocation_table::{
+    AllocationTableKind, PhysicalAllocationTableEntry, PhysicalAllocationTableEntryError,
+};
 
 /// Represents a single logical entry in the allocation table.
 ///
@@ -36,7 +38,7 @@ impl AllocationTableEntry {
     pub fn as_physical_entry(
         &self,
         table_kind: AllocationTableKind,
-    ) -> Result<PhysicalAllocationTableEntry, ()> {
+    ) -> Result<PhysicalAllocationTableEntry, PhysicalAllocationTableEntryError> {
         let value = match self {
             AllocationTableEntry::Free => 0,
             AllocationTableEntry::Reserved => 1,

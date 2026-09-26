@@ -229,7 +229,7 @@ impl TestInstance {
 
         Self {
             device: SingleAccessDevice::new(DataStream::from_bytes(data)),
-            allocation_table: AllocationTable::new(allocation_table_kind, 0),
+            allocation_table: AllocationTable::new(allocation_table_kind, 0, 10),
 
             entry_count,
             data_region_base_address: 12,

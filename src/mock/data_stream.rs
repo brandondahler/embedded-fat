@@ -1,38 +1,46 @@
 use crate::Device;
 use crate::mock::IoError;
+use alloc::rc::Rc;
 use core::borrow::Borrow;
+use core::cell::{Ref, RefCell};
 use core::cmp::min;
+use core::ops::Deref;
 use embedded_io::{ErrorType, SeekFrom};
 
 #[cfg(feature = "sync")]
-use embedded_io::{Read, Seek};
+use embedded_io::{Read, Seek, Write};
 
 #[cfg(feature = "async")]
-use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
+use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
 #[derive(Clone, Debug)]
-pub struct DataStream<B>
+pub struct DataStream<E>
 where
-    B: Borrow<[u8]>,
+    E: AsRef<[u8]>,
 {
-    bytes: B,
+    bytes: Rc<RefCell<E>>,
     position: usize,
 }
 
-impl<B> DataStream<B>
+impl<E> DataStream<E>
 where
-    B: Borrow<[u8]>,
+    E: AsRef<[u8]>,
 {
-    pub fn new(bytes: B, position: usize) -> Self {
+    pub fn new(bytes: Rc<RefCell<E>>, position: usize) -> Self {
         Self { bytes, position }
     }
 
-    pub fn from_bytes(bytes: B) -> Self {
+    pub fn from_bytes_ref_cell(bytes: Rc<RefCell<E>>) -> Self {
         Self::new(bytes, 0)
     }
 
+    pub fn from_bytes(bytes: E) -> Self {
+        Self::new(Rc::new(RefCell::new(bytes)), 0)
+    }
+
     fn read_internal(&mut self, buf: &mut [u8]) -> Result<usize, IoError> {
-        let bytes = self.bytes.borrow();
+        let bytes_ref = self.bytes.deref().borrow();
+        let bytes = bytes_ref.as_ref();
 
         let start = min(self.position, bytes.len());
         let end = min(start + buf.len(), bytes.len());
@@ -50,7 +58,12 @@ where
     fn seek_internal(&mut self, pos: SeekFrom) -> Result<u64, IoError> {
         self.position = match pos {
             SeekFrom::Start(value) => value as usize,
-            SeekFrom::End(value) => (self.bytes.borrow().len() as i64 + value) as usize,
+            SeekFrom::End(value) => {
+                let bytes_ref = self.bytes.deref().borrow();
+                let bytes = bytes_ref.as_ref();
+
+                (bytes.len() as i64 + value) as usize
+            }
             SeekFrom::Current(value) => (self.position as i64 + value) as usize,
         };
 
@@ -58,45 +71,85 @@ where
     }
 }
 
-impl<D> ErrorType for DataStream<D>
+impl<E> DataStream<E>
 where
-    D: Borrow<[u8]>,
+    E: AsRef<[u8]> + AsMut<[u8]>,
+{
+    fn write_internal(&mut self, buf: &[u8]) -> Result<usize, IoError> {
+        let mut bytes_ref = self.bytes.deref().borrow_mut();
+        let mut bytes = bytes_ref.as_mut();
+
+        bytes[self.position..(self.position + buf.len())].copy_from_slice(buf);
+
+        Ok(buf.len())
+    }
+}
+
+impl<E> ErrorType for DataStream<E>
+where
+    E: AsRef<[u8]>,
 {
     type Error = IoError;
 }
 
-impl<D> Read for DataStream<D>
+impl<E> Read for DataStream<E>
 where
-    D: Borrow<[u8]>,
+    E: AsRef<[u8]>,
 {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         self.read_internal(buf)
     }
 }
 
-impl<D> AsyncRead for DataStream<D>
+impl<E> AsyncRead for DataStream<E>
 where
-    D: Borrow<[u8]>,
+    E: AsRef<[u8]>,
 {
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         self.read_internal(buf)
     }
 }
 
-impl<D> Seek for DataStream<D>
+impl<E> Seek for DataStream<E>
 where
-    D: Borrow<[u8]>,
+    E: AsRef<[u8]>,
 {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, Self::Error> {
         self.seek_internal(pos)
     }
 }
 
-impl<D> AsyncSeek for DataStream<D>
+impl<E> AsyncSeek for DataStream<E>
 where
-    D: Borrow<[u8]>,
+    E: AsRef<[u8]>,
 {
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64, Self::Error> {
         self.seek_internal(pos)
+    }
+}
+
+impl<E> Write for DataStream<E>
+where
+    E: AsRef<[u8]> + AsMut<[u8]>,
+{
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        self.write_internal(buf)
+    }
+
+    fn flush(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
+impl<E> AsyncWrite for DataStream<E>
+where
+    E: AsRef<[u8]> + AsMut<[u8]>,
+{
+    async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        self.write_internal(buf)
+    }
+
+    async fn flush(&mut self) -> Result<(), Self::Error> {
+        Ok(())
     }
 }

@@ -102,7 +102,7 @@ mod peek {
             IoError::default(),
             ErroringStreamScenarios::SEEK,
         ));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -130,7 +130,7 @@ mod peek {
             IoError::default(),
             ErroringStreamScenarios::READ,
         ));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -154,7 +154,7 @@ mod peek {
     #[test]
     fn stream_end_reached_error_propagated() {
         let device = SingleAccessDevice::new(DataStream::from_bytes([]));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -177,7 +177,7 @@ mod peek {
 
     #[test]
     fn device_err_propagated() {
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let iterator = DirectoryFileEntryIterator::new(
             &ErroringDevice,
@@ -204,7 +204,7 @@ mod peek {
         data[0] = 0x20;
 
         let device = SingleAccessDevice::new(DataStream::from_bytes(data));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -264,7 +264,7 @@ mod advance {
         write_le_u32(&mut data, 8, 0);
 
         let device = SingleAccessDevice::new(DataStream::from_bytes(data));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -291,7 +291,7 @@ mod advance {
         write_le_u32(&mut data, 8, 1);
 
         let device = SingleAccessDevice::new(DataStream::from_bytes(data));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -318,7 +318,7 @@ mod advance {
         write_le_u32(&mut data, 8, AllocationTableKind::Fat32.bad_sector_value());
 
         let device = SingleAccessDevice::new(DataStream::from_bytes(data));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -346,7 +346,7 @@ mod advance {
             IoError::default(),
             ErroringStreamScenarios::SEEK,
         ));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -371,7 +371,7 @@ mod advance {
             IoError::default(),
             ErroringStreamScenarios::READ,
         ));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -392,7 +392,7 @@ mod advance {
     #[test]
     fn stream_end_reached_error_propagated() {
         let device = SingleAccessDevice::new(DataStream::from_bytes([]));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -412,7 +412,7 @@ mod advance {
 
     #[test]
     fn device_error_propagated() {
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &ErroringDevice,
@@ -503,7 +503,7 @@ mod next {
         write_le_u32(&mut data, 8, 0);
 
         let device = SingleAccessDevice::new(DataStream::from_bytes(data));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -533,7 +533,7 @@ mod next {
         write_le_u32(&mut data, 8, 1);
 
         let device = SingleAccessDevice::new(DataStream::from_bytes(data));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -563,7 +563,7 @@ mod next {
         write_le_u32(&mut data, 8, AllocationTableKind::Fat32.bad_sector_value());
 
         let device = SingleAccessDevice::new(DataStream::from_bytes(data));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -594,7 +594,7 @@ mod next {
             IoError::default(),
             ErroringStreamScenarios::SEEK,
         ));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -622,7 +622,7 @@ mod next {
             IoError::default(),
             ErroringStreamScenarios::READ,
         ));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -646,7 +646,7 @@ mod next {
     #[test]
     fn stream_end_reached_error_propagated() {
         let device = SingleAccessDevice::new(DataStream::from_bytes([]));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -669,7 +669,7 @@ mod next {
 
     #[test]
     fn device_error_propagated() {
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &ErroringDevice,
@@ -787,7 +787,7 @@ mod peek_async {
             IoError::default(),
             ErroringStreamScenarios::SEEK,
         ));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -816,7 +816,7 @@ mod peek_async {
             IoError::default(),
             ErroringStreamScenarios::READ,
         ));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -841,7 +841,7 @@ mod peek_async {
     #[tokio::test]
     async fn stream_end_reached_error_propagated() {
         let device = SingleAccessDevice::new(DataStream::from_bytes([]));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -865,7 +865,7 @@ mod peek_async {
 
     #[tokio::test]
     async fn device_err_propagated() {
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let iterator = DirectoryFileEntryIterator::new(
             &ErroringDevice,
@@ -893,7 +893,7 @@ mod peek_async {
         data[0] = 0x20;
 
         let device = SingleAccessDevice::new(DataStream::from_bytes(data));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -963,7 +963,7 @@ mod advance_async {
         write_le_u32(&mut data, 8, 0);
 
         let device = SingleAccessDevice::new(DataStream::from_bytes(data));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -993,7 +993,7 @@ mod advance_async {
         write_le_u32(&mut data, 8, 1);
 
         let device = SingleAccessDevice::new(DataStream::from_bytes(data));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -1023,7 +1023,7 @@ mod advance_async {
         write_le_u32(&mut data, 8, AllocationTableKind::Fat32.bad_sector_value());
 
         let device = SingleAccessDevice::new(DataStream::from_bytes(data));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -1054,7 +1054,7 @@ mod advance_async {
             IoError::default(),
             ErroringStreamScenarios::SEEK,
         ));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -1082,7 +1082,7 @@ mod advance_async {
             IoError::default(),
             ErroringStreamScenarios::READ,
         ));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -1106,7 +1106,7 @@ mod advance_async {
     #[tokio::test]
     async fn stream_end_reached_error_propagated() {
         let device = SingleAccessDevice::new(DataStream::from_bytes([]));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -1129,7 +1129,7 @@ mod advance_async {
 
     #[tokio::test]
     async fn device_error_propagated() {
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &ErroringDevice,
@@ -1226,7 +1226,7 @@ mod next_async {
         write_le_u32(&mut data, 8, 0);
 
         let device = SingleAccessDevice::new(DataStream::from_bytes(data));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -1257,7 +1257,7 @@ mod next_async {
         write_le_u32(&mut data, 8, 1);
 
         let device = SingleAccessDevice::new(DataStream::from_bytes(data));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -1288,7 +1288,7 @@ mod next_async {
         write_le_u32(&mut data, 8, AllocationTableKind::Fat32.bad_sector_value());
 
         let device = SingleAccessDevice::new(DataStream::from_bytes(data));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -1320,7 +1320,7 @@ mod next_async {
             IoError::default(),
             ErroringStreamScenarios::SEEK,
         ));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -1349,7 +1349,7 @@ mod next_async {
             IoError::default(),
             ErroringStreamScenarios::READ,
         ));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -1374,7 +1374,7 @@ mod next_async {
     #[tokio::test]
     async fn stream_end_reached_error_propagated() {
         let device = SingleAccessDevice::new(DataStream::from_bytes([]));
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -1398,7 +1398,7 @@ mod next_async {
 
     #[tokio::test]
     async fn device_error_propagated() {
-        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0);
+        let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
             &ErroringDevice,
@@ -1469,7 +1469,7 @@ impl TestInstance {
 
         Self {
             device: DataStream::from_bytes(data).into(),
-            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 10),
 
             data_region_base_address: data_region_base_address as u64,
             bytes_per_cluster: (entries_per_cluster * DIRECTORY_ENTRY_SIZE) as u32,

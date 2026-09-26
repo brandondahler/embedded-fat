@@ -43,10 +43,13 @@ impl Display for FoldingTestSupport<'_> {
             ];
 
             #[cfg(test)]
-            pub fn unoptimized_fold_codepoint(codepoint: u32) -> u32 {{
+            pub fn unoptimized_fold_character(character: char) -> char {{
+                let codepoint = character as u32;
+
                 match PARSED_MAPPINGS.binary_search_by_key(&codepoint, |&(key, _)| key) {{
-                    Ok(index) => PARSED_MAPPINGS[index].1,
-                    Err(_) => codepoint,
+                    // SAFETY: Source guarantees values are valid
+                    Ok(index) => unsafe {{ char::from_u32_unchecked(PARSED_MAPPINGS[index].1) }},
+                    Err(_) => character,
                 }}
             }}
             "

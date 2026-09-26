@@ -20,7 +20,7 @@ embedded-io-async = { version = "0.7", optional = true }
 criterion = "0.8"
 embedded-io = { version = "0.7", features = ["std"] }
 embedded-io-async = { version = "0.7", features = ["std"] }
-strum = { version = "0.27", features = ["derive"] }
+strum = { version = "0.28", features = ["derive"] }
 tokio = { version = "1", features = ["macros", "rt"] }
 
 [[bench]]

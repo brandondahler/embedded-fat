@@ -39,12 +39,9 @@ impl ShortNameDirectoryEntry {
             (read_le_u16(bytes, 20) as u32) << 16 | read_le_u16(bytes, 26) as u32;
         let file_size = read_le_u32(bytes, 28);
 
+        // NOTE: first_cluster_number being 0 or 1 is allowed if file_size is 0
         ensure!(
-            file_size > 0 || first_cluster_number != 0,
-            ShortNameDirectoryEntryError::FirstClusterNumberInvalid
-        );
-        ensure!(
-            first_cluster_number != 1,
+            first_cluster_number >= 2 || file_size == 0,
             ShortNameDirectoryEntryError::FirstClusterNumberInvalid
         );
 
