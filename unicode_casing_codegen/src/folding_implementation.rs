@@ -21,6 +21,7 @@ pub struct FoldingImplementation {
     small_positive_differences: Vec<u8>,
     medium_negative_differences: Vec<u16>,
     medium_positive_differences: Vec<u16>,
+    large_differences: Vec<i32>,
 }
 
 impl FoldingImplementation {
@@ -42,6 +43,9 @@ impl FoldingImplementation {
 
         let mut medium_positive_differences = Vec::with_capacity(differences_len);
         let mut medium_positive_difference_indices = HashMap::with_capacity(differences_len);
+
+        let mut large_differences = Vec::with_capacity(differences_len);
+        let mut large_difference_indices = HashMap::with_capacity(differences_len);
 
         for &difference in sorted_differences.iter() {
             match difference {
@@ -65,7 +69,10 @@ impl FoldingImplementation {
                         .insert(difference, medium_positive_differences.len());
                     medium_positive_differences.push(u16::try_from(difference).unwrap());
                 }
-                _ => panic!("Difference outside of expected range"),
+                _ => {
+                    large_difference_indices.insert(difference, large_differences.len());
+                    large_differences.push(difference);
+                }
             };
         }
 
@@ -125,6 +132,17 @@ impl FoldingImplementation {
                                 + medium_negative_differences.len()
                         })
                 })
+                .or_else(|| {
+                    large_difference_indices
+                        .get(&run.difference())
+                        .map(|value| {
+                            value
+                                + small_negative_differences.len()
+                                + small_positive_differences.len()
+                                + medium_negative_differences.len()
+                                + medium_positive_differences.len()
+                        })
+                })
                 .unwrap();
 
             let difference_index =
@@ -165,6 +183,7 @@ impl FoldingImplementation {
             small_positive_differences,
             medium_negative_differences,
             medium_positive_differences,
+            large_differences,
         }
     }
 
@@ -189,10 +208,9 @@ impl FoldingImplementation {
                 }}
 
                 let unicode_plane = (codepoint >> 16) as u8;
-                let code_unit = codepoint as u16;
 
                 #[rustfmt::skip]
-                let mapped_code_unit = match unicode_plane {{
+                let folded_codepoint = match unicode_plane {{
             "
         )?;
 
@@ -204,8 +222,8 @@ impl FoldingImplementation {
                 f,
                 "
                 0x{unicode_plane_value:02X} => {{
-                    translate_code_unit(
-                        code_unit,
+                    translate_codepoint(
+                        codepoint,
                 "
             )?;
 
@@ -283,19 +301,21 @@ impl FoldingImplementation {
                 }};
 
                 // SAFETY: Source guarantees that it is a valid value
-                unsafe {{ char::from_u32_unchecked(((unicode_plane as u32) << 16) | mapped_code_unit as u32) }}
+                unsafe {{ char::from_u32_unchecked(folded_codepoint) }}
             }}
 
             #[inline(always)]
-            fn translate_code_unit(
-                code_unit: u16,
+            fn translate_codepoint(
+                codepoint: u32,
                 skip_series_list: &[u16],
                 skip_series_offset: usize,
                 runs: &[u16],
                 runs_item_offset: usize,
                 entries: &[u16],
                 entries_item_offset: usize,
-            ) -> u16 {{
+            ) -> u32 {{
+                let code_unit = codepoint as u16;
+
                 let skip_series_starting_code_unit = match skip_series_list.binary_search(&code_unit) {{
                     Ok(skip_series_index) => unsafe {{
                         Some(*skip_series_list.get_unchecked(skip_series_index))
@@ -328,9 +348,9 @@ impl FoldingImplementation {
                     let is_code_unit_odd = (code_unit & 1) > 0;
 
                     return if is_starting_code_unit_odd == is_code_unit_odd {{
-                        code_unit + 1
+                        codepoint + 1
                     }} else {{
-                        code_unit
+                        codepoint
                     }};
                 }}
 
@@ -357,17 +377,17 @@ impl FoldingImplementation {
                 }};
 
                 if let Some(run_index) = run_index {{
-                    return apply_difference(code_unit, runs_item_offset + run_index);
+                    return apply_difference(codepoint, runs_item_offset + run_index);
                 }}
 
                 match entries.binary_search(&code_unit) {{
-                    Ok(entry_index) => apply_difference(code_unit, entries_item_offset + entry_index),
-                    Err(_) => code_unit,
+                    Ok(entry_index) => apply_difference(codepoint, entries_item_offset + entry_index),
+                    Err(_) => codepoint,
                 }}
             }}
 
             #[inline]
-            fn apply_difference(code_unit: u16, item_index: usize) -> u16 {{
+            fn apply_difference(codepoint: u32, item_index: usize) -> u32 {{
                 // SAFETY: Pre-computed during code generation
                 let difference_index = unsafe {{ *DIFFERENCE_INDICES.get_unchecked(item_index) }};
 
@@ -397,7 +417,7 @@ impl FoldingImplementation {
                         }}
                     }}
 
-                    _ => {{
+                    MEDIUM_POSITIVE_DIFFERENCES_START_INDEX..LARGE_DIFFERENCES_START_INDEX => {{
                         // SAFETY: Pre-computed during code generation
                         unsafe {{
                             *MEDIUM_POSITIVE_DIFFERENCES.get_unchecked(
@@ -405,9 +425,17 @@ impl FoldingImplementation {
                             ) as i32
                         }}
                     }}
+
+                    _ => {{
+                        // SAFETY: Pre-computed during code generation
+                        unsafe {{
+                            *LARGE_DIFFERENCES
+                                .get_unchecked((difference_index - LARGE_DIFFERENCES_START_INDEX) as usize)
+                        }}
+                    }}
                 }};
 
-                (code_unit as i32 + difference) as u16
+                (codepoint as i32 + difference) as u32
             }}
             "
         )?;
@@ -580,6 +608,14 @@ impl Display for FoldingImplementation {
             &self.medium_positive_differences,
             "MEDIUM_POSITIVE",
             "u16",
+            &mut difference_offset,
+        )?;
+
+        self.write_differences(
+            &mut f,
+            &self.large_differences,
+            "LARGE",
+            "i32",
             &mut difference_offset,
         )?;
 

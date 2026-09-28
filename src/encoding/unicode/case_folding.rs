@@ -10,13 +10,12 @@ pub fn fold_character(character: char) -> char {
     }
 
     let unicode_plane = (codepoint >> 16) as u8;
-    let code_unit = codepoint as u16;
 
     #[rustfmt::skip]
-    let mapped_code_unit = match unicode_plane {
+    let folded_codepoint = match unicode_plane {
         0x00 => {
-            translate_code_unit(
-                code_unit,
+            translate_codepoint(
+                codepoint,
                 &SKIP_SERIES_LIST_00,
                 SKIP_SERIES_LIST_00_OFFSET as usize,
                 &RUNS_00,
@@ -26,33 +25,35 @@ pub fn fold_character(character: char) -> char {
             )
         }
         0x01 => {
-            translate_code_unit(
-                code_unit,
-                &[],
-                0,
+            translate_codepoint(
+                codepoint,
+                &SKIP_SERIES_LIST_01,
+                SKIP_SERIES_LIST_01_OFFSET as usize,
                 &RUNS_01,
                 RUNS_01_ITEM_OFFSET as usize,
-                &[],
-                0
+                &ENTRIES_01,
+                ENTRIES_01_ITEM_OFFSET as usize
             )
         }
-        _ => return character,
+        _ => codepoint,
     };
 
     // SAFETY: Source guarantees that it is a valid value
-    unsafe { char::from_u32_unchecked(((unicode_plane as u32) << 16) | mapped_code_unit as u32) }
+    unsafe { char::from_u32_unchecked(folded_codepoint) }
 }
 
 #[inline(always)]
-fn translate_code_unit(
-    code_unit: u16,
+fn translate_codepoint(
+    codepoint: u32,
     skip_series_list: &[u16],
     skip_series_offset: usize,
     runs: &[u16],
     runs_item_offset: usize,
     entries: &[u16],
     entries_item_offset: usize,
-) -> u16 {
+) -> u32 {
+    let code_unit = codepoint as u16;
+
     let skip_series_starting_code_unit = match skip_series_list.binary_search(&code_unit) {
         Ok(skip_series_index) => unsafe {
             Some(*skip_series_list.get_unchecked(skip_series_index))
@@ -85,9 +86,9 @@ fn translate_code_unit(
         let is_code_unit_odd = (code_unit & 1) > 0;
 
         return if is_starting_code_unit_odd == is_code_unit_odd {
-            code_unit + 1
+            codepoint + 1
         } else {
-            code_unit
+            codepoint
         };
     }
 
@@ -114,17 +115,17 @@ fn translate_code_unit(
     };
 
     if let Some(run_index) = run_index {
-        return apply_difference(code_unit, runs_item_offset + run_index);
+        return apply_difference(codepoint, runs_item_offset + run_index);
     }
 
     match entries.binary_search(&code_unit) {
-        Ok(entry_index) => apply_difference(code_unit, entries_item_offset + entry_index),
-        Err(_) => code_unit,
+        Ok(entry_index) => apply_difference(codepoint, entries_item_offset + entry_index),
+        Err(_) => codepoint,
     }
 }
 
 #[inline]
-fn apply_difference(code_unit: u16, item_index: usize) -> u16 {
+fn apply_difference(codepoint: u32, item_index: usize) -> u32 {
     // SAFETY: Pre-computed during code generation
     let difference_index = unsafe { *DIFFERENCE_INDICES.get_unchecked(item_index) };
 
@@ -154,7 +155,7 @@ fn apply_difference(code_unit: u16, item_index: usize) -> u16 {
             }
         }
 
-        _ => {
+        MEDIUM_POSITIVE_DIFFERENCES_START_INDEX..LARGE_DIFFERENCES_START_INDEX => {
             // SAFETY: Pre-computed during code generation
             unsafe {
                 *MEDIUM_POSITIVE_DIFFERENCES.get_unchecked(
@@ -162,9 +163,17 @@ fn apply_difference(code_unit: u16, item_index: usize) -> u16 {
                 ) as i32
             }
         }
+
+        _ => {
+            // SAFETY: Pre-computed during code generation
+            unsafe {
+                *LARGE_DIFFERENCES
+                    .get_unchecked((difference_index - LARGE_DIFFERENCES_START_INDEX) as usize)
+            }
+        }
     };
 
-    (code_unit as i32 + difference) as u16
+    (codepoint as i32 + difference) as u32
 }
 const SKIP_SERIES_LIST_00_OFFSET: u8 = 0;
 #[rustfmt::skip]
@@ -233,8 +242,19 @@ static SKIP_SERIES_LIST_00: [u16; 62] = [
     0xFB05,
 ];
 
+const SKIP_SERIES_LIST_01_OFFSET: u8 = 62;
 #[rustfmt::skip]
-static SKIP_SERIES_END_OFFSETS: [u8; 62] = [
+static SKIP_SERIES_LIST_01: [u16; 6] = [
+    0xDF40,
+    0xDF48,
+    0xDF4D,
+    0xDF51,
+    0xDF68,
+    0xDF72,
+];
+
+#[rustfmt::skip]
+static SKIP_SERIES_END_OFFSETS: [u8; 68] = [
     47,
     5,
     15,
@@ -297,11 +317,17 @@ static SKIP_SERIES_END_OFFSETS: [u8; 62] = [
     15,
     1,
     1,
+    1,
+    3,
+    1,
+    1,
+    7,
+    13,
 ];
 
 const RUNS_00_ITEM_OFFSET: u8 = 0;
 #[rustfmt::skip]
-static RUNS_00: [u16; 41] = [
+static RUNS_00: [u16; 42] = [
     0x00C0,
     0x00D8,
     0x0189,
@@ -341,11 +367,12 @@ static RUNS_00: [u16; 41] = [
     0x24B6,
     0x2C00,
     0x2C7E,
+    0xAB6C,
     0xAB70,
     0xFF21,
 ];
 
-const RUNS_01_ITEM_OFFSET: u8 = 41;
+const RUNS_01_ITEM_OFFSET: u8 = 42;
 #[rustfmt::skip]
 static RUNS_01: [u16; 12] = [
     0x0400,
@@ -363,7 +390,7 @@ static RUNS_01: [u16; 12] = [
 ];
 
 #[rustfmt::skip]
-static RUN_END_OFFSETS: [u8; 53] = [
+static RUN_END_OFFSETS: [u8; 54] = [
     22,
     6,
     1,
@@ -403,6 +430,7 @@ static RUN_END_OFFSETS: [u8; 53] = [
     25,
     47,
     1,
+    1,
     79,
     25,
     39,
@@ -419,9 +447,9 @@ static RUN_END_OFFSETS: [u8; 53] = [
     33,
 ];
 
-const ENTRIES_00_ITEM_OFFSET: u8 = 53;
+const ENTRIES_00_ITEM_OFFSET: u8 = 54;
 #[rustfmt::skip]
-static ENTRIES_00: [u16; 96] = [
+static ENTRIES_00: [u16; 98] = [
     0x00B5,
     0x0178,
     0x017F,
@@ -518,163 +546,175 @@ static ENTRIES_00: [u16; 96] = [
     0xA7C6,
     0xA7CB,
     0xA7DC,
+    0xA7DD,
+    0xA7E2,
+];
+
+const ENTRIES_01_ITEM_OFFSET: u8 = 152;
+#[rustfmt::skip]
+static ENTRIES_01: [u16; 1] = [
+    0xDF95,
 ];
 
 #[rustfmt::skip]
-static DIFFERENCE_INDICES: [u8; 149] = [
-    31,
-    31,
-    47,
-    55,
-    33,
-    38,
-    31,
-    31,
+static DIFFERENCE_INDICES: [u8; 153] = [
+    32,
+    32,
+    48,
+    56,
+    34,
+    39,
+    32,
+    32,
     2,
-    43,
-    31,
-    37,
-    98,
-    22,
-    90,
-    94,
-    94,
-    22,
-    22,
-    22,
-    22,
-    22,
-    22,
-    22,
-    22,
-    22,
-    22,
+    44,
+    32,
+    38,
+    100,
+    23,
+    92,
+    96,
+    96,
+    23,
+    23,
+    23,
+    23,
+    23,
+    23,
+    23,
+    23,
+    23,
+    23,
     10,
     9,
-    22,
+    23,
     7,
-    22,
+    23,
     6,
     3,
     4,
-    27,
     28,
-    37,
-    72,
-    69,
-    31,
-    36,
-    36,
-    35,
-    35,
-    35,
-    35,
-    39,
-    31,
-    31,
-    31,
     29,
+    38,
+    74,
+    17,
+    71,
     32,
-    96,
+    37,
+    37,
+    36,
+    36,
+    36,
+    36,
+    40,
+    32,
+    32,
+    32,
+    30,
+    33,
+    98,
     5,
-    95,
-    51,
-    48,
-    42,
-    45,
+    97,
+    52,
+    49,
+    43,
     46,
     47,
-    49,
-    52,
+    48,
     50,
-    52,
+    53,
+    51,
     53,
     54,
-    56,
-    56,
-    56,
+    55,
     57,
-    24,
-    24,
-    24,
-    24,
+    57,
+    57,
+    58,
+    25,
+    25,
+    25,
+    25,
     8,
     14,
     2,
-    100,
+    102,
     1,
-    99,
+    101,
     0,
-    40,
     41,
-    44,
-    44,
-    34,
-    39,
-    25,
-    17,
+    42,
+    45,
+    45,
+    35,
+    40,
+    26,
     18,
-    20,
     19,
+    21,
+    20,
     15,
     16,
     12,
     11,
-    23,
-    26,
-    98,
-    98,
-    86,
-    87,
+    24,
+    27,
+    100,
+    100,
     88,
     89,
+    90,
     91,
-    92,
-    101,
-    13,
-    81,
-    22,
-    22,
-    22,
-    22,
-    21,
-    85,
-    21,
-    83,
-    84,
-    23,
-    21,
-    82,
-    79,
-    80,
-    30,
-    77,
     93,
+    94,
+    103,
+    13,
+    83,
+    23,
+    23,
+    23,
+    23,
+    22,
+    87,
+    22,
+    85,
+    86,
+    24,
+    22,
+    84,
+    81,
+    82,
+    31,
+    79,
+    95,
+    80,
+    77,
     78,
     75,
     76,
     73,
-    74,
-    71,
-    66,
-    62,
-    60,
-    61,
+    68,
     64,
     62,
-    68,
-    65,
-    67,
-    97,
-    16,
     63,
+    66,
+    64,
     70,
+    67,
+    69,
+    99,
+    16,
+    65,
+    72,
+    60,
     59,
-    58,
+    61,
+    61,
+    104,
 ];
 
 #[rustfmt::skip]
-static SMALL_NEGATIVE_DIFFERENCES: [u8; 24] = [
+static SMALL_NEGATIVE_DIFFERENCES: [u8; 25] = [
     195,
     163,
     130,
@@ -692,6 +732,7 @@ static SMALL_NEGATIVE_DIFFERENCES: [u8; 24] = [
     56,
     54,
     48,
+    33,
     30,
     25,
     22,
@@ -701,7 +742,7 @@ static SMALL_NEGATIVE_DIFFERENCES: [u8; 24] = [
     7,
 ];
 
-const SMALL_POSITIVE_DIFFERENCES_START_INDEX: u8 = 24;
+const SMALL_POSITIVE_DIFFERENCES_START_INDEX: u8 = 25;
 #[rustfmt::skip]
 static SMALL_POSITIVE_DIFFERENCES: [u8; 34] = [
     2,
@@ -740,11 +781,12 @@ static SMALL_POSITIVE_DIFFERENCES: [u8; 34] = [
     219,
 ];
 
-const MEDIUM_NEGATIVE_DIFFERENCES_START_INDEX: u8 = 58;
+const MEDIUM_NEGATIVE_DIFFERENCES_START_INDEX: u8 = 59;
 #[rustfmt::skip]
-static MEDIUM_NEGATIVE_DIFFERENCES: [u16; 38] = [
+static MEDIUM_NEGATIVE_DIFFERENCES: [u16; 39] = [
     42561,
     42343,
+    42342,
     42319,
     42315,
     42308,
@@ -783,7 +825,7 @@ static MEDIUM_NEGATIVE_DIFFERENCES: [u16; 38] = [
     268,
 ];
 
-const MEDIUM_POSITIVE_DIFFERENCES_START_INDEX: u8 = 96;
+const MEDIUM_POSITIVE_DIFFERENCES_START_INDEX: u8 = 98;
 #[rustfmt::skip]
 static MEDIUM_POSITIVE_DIFFERENCES: [u16; 6] = [
     775,
@@ -794,8 +836,14 @@ static MEDIUM_POSITIVE_DIFFERENCES: [u16; 6] = [
     35267,
 ];
 
+const LARGE_DIFFERENCES_START_INDEX: u8 = 104;
+#[rustfmt::skip]
+static LARGE_DIFFERENCES: [i32; 1] = [
+    -122550,
+];
+
 #[cfg(test)]
-static PARSED_MAPPINGS: [(u32, u32); 1512] = [
+static PARSED_MAPPINGS: [(u32, u32); 1533] = [
     (0x000041, 0x000061),
     (0x000042, 0x000062),
     (0x000043, 0x000063),
@@ -1893,7 +1941,11 @@ static PARSED_MAPPINGS: [(u32, u32); 1512] = [
     (0x00A7D8, 0x00A7D9),
     (0x00A7DA, 0x00A7DB),
     (0x00A7DC, 0x00019B),
+    (0x00A7DD, 0x000277),
+    (0x00A7E2, 0x00027C),
     (0x00A7F5, 0x00A7F6),
+    (0x00AB6C, 0x00AB4B),
+    (0x00AB6D, 0x00AB4C),
     (0x00AB70, 0x0013A0),
     (0x00AB71, 0x0013A1),
     (0x00AB72, 0x0013A2),
@@ -2274,6 +2326,23 @@ static PARSED_MAPPINGS: [(u32, u32); 1512] = [
     (0x016EB6, 0x016ED1),
     (0x016EB7, 0x016ED2),
     (0x016EB8, 0x016ED3),
+    (0x01DF40, 0x01DF41),
+    (0x01DF48, 0x01DF49),
+    (0x01DF4A, 0x01DF4B),
+    (0x01DF4D, 0x01DF4E),
+    (0x01DF51, 0x01DF52),
+    (0x01DF68, 0x01DF69),
+    (0x01DF6A, 0x01DF6B),
+    (0x01DF6C, 0x01DF6D),
+    (0x01DF6E, 0x01DF6F),
+    (0x01DF72, 0x01DF73),
+    (0x01DF74, 0x01DF75),
+    (0x01DF76, 0x01DF77),
+    (0x01DF78, 0x01DF79),
+    (0x01DF7A, 0x01DF7B),
+    (0x01DF7C, 0x01DF7D),
+    (0x01DF7E, 0x01DF7F),
+    (0x01DF95, 0x0000DF),
     (0x01E900, 0x01E922),
     (0x01E901, 0x01E923),
     (0x01E902, 0x01E924),

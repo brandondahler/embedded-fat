@@ -1,4 +1,3 @@
-use crate::types::UnicodePlane;
 use std::collections::{BTreeMap, HashSet};
 
 pub struct ProcessedMappings {
@@ -17,12 +16,6 @@ impl ProcessedMappings {
         let mut current_skip_series: Option<SkipSeries> = None;
 
         for (&source_codepoint, &target_codepoint) in parsed_mappings {
-            assert_eq!(
-                UnicodePlane::for_codepoint(source_codepoint),
-                UnicodePlane::for_codepoint(target_codepoint),
-                "Applying differences in the implementation assumes that they do not result in cross-plane values"
-            );
-
             let difference =
                 i32::try_from(target_codepoint).unwrap() - i32::try_from(source_codepoint).unwrap();
 
