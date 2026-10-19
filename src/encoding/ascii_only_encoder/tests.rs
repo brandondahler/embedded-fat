@@ -9,9 +9,7 @@ mod encode {
 
         for codepoint in 0x00..=0x7F {
             let character = char::from_u32(codepoint as u32).unwrap();
-            let result = ascii_only_encoder
-                .encode(character)
-                .expect("Ok should be returned");
+            let result = ascii_only_encoder.encode(character).unwrap();
 
             assert_eq!(result, codepoint);
         }

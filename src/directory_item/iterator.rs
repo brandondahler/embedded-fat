@@ -1,44 +1,37 @@
 #[cfg(test)]
 mod tests;
 
-use crate::Device;
+use crate::DirectoryItemIterationError;
 use crate::directory_entry::{
     DirectoryEntry, DirectoryEntryIterator, FreeDirectoryEntry, LONG_NAME_CHARACTERS_PER_ENTRY,
 };
 use crate::directory_item::{
-    DIRECTORY_ENTITY_LONG_NAME_MAX_LENGTH, DeviceDirectoryItemIterationError, DirectoryItem,
-    DirectoryItemBuilder, DirectoryItemError,
+    DIRECTORY_ENTITY_LONG_NAME_MAX_LENGTH, DirectoryItem, DirectoryItemBuilder, DirectoryItemError,
 };
 use embedded_io::{ErrorType, SeekFrom};
 
 #[cfg(feature = "sync")]
-use {
-    crate::SyncDevice,
-    embedded_io::{Read, Seek},
-};
+use embedded_io::{Read, Seek};
 
 #[cfg(feature = "async")]
-use {
-    crate::AsyncDevice,
-    embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek},
-};
+use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
 const MAX_ENTRY_COUNT: usize =
     DIRECTORY_ENTITY_LONG_NAME_MAX_LENGTH.div_ceil(LONG_NAME_CHARACTERS_PER_ENTRY) + 1;
 
 #[derive(Clone, Debug)]
-pub struct DirectoryItemIterator<'a, D>
+pub struct DirectoryItemIterator<'a, S>
 where
-    D: Device,
+    S: ErrorType,
 {
-    entry_iterator: DirectoryEntryIterator<'a, D>,
+    entry_iterator: DirectoryEntryIterator<'a, S>,
 }
 
-impl<'a, D> DirectoryItemIterator<'a, D>
+impl<'a, S> DirectoryItemIterator<'a, S>
 where
-    D: Device,
+    S: ErrorType,
 {
-    pub fn new(entry_iterator: DirectoryEntryIterator<'a, D>) -> Self {
+    pub fn new(entry_iterator: DirectoryEntryIterator<'a, S>) -> Self {
         Self { entry_iterator }
     }
 
@@ -48,66 +41,63 @@ where
 }
 
 #[cfg(feature = "sync")]
-impl<D, S> DirectoryItemIterator<'_, D>
+impl<S> DirectoryItemIterator<'_, S>
 where
-    D: SyncDevice<Stream = S>,
     S: Read + Seek,
 {
-    pub fn next(&mut self) -> Option<Result<DirectoryItem, DeviceDirectoryItemIterationError<D>>> {
+    pub fn next(&mut self) -> Result<Option<DirectoryItem>, DirectoryItemIterationError<S::Error>> {
         let mut is_first_entry = true;
         let mut builder = DirectoryItemBuilder::new();
 
         loop {
             let entry = match self.entry_iterator.peek() {
-                Some(result) => match result {
-                    Ok(entry) => entry,
-                    Err(error) => {
-                        propagate_iteration_error!(self.entry_iterator.advance());
-                        return Some(Err(error.into()));
-                    }
-                },
-                None => {
+                Ok(Some(entry)) => entry,
+                Ok(None) => {
                     return if !is_first_entry {
-                        Some(Err(DirectoryItemError::LongNameOrphaned.into()))
+                        Err(DirectoryItemError::LongNameOrphaned.into())
                     } else {
-                        None
+                        Ok(None)
                     };
+                }
+                Err(error) => {
+                    self.entry_iterator.advance()?;
+                    return Err(error.into());
                 }
             };
 
             match entry {
                 DirectoryEntry::Free(free_entry) => {
-                    propagate_iteration_error!(self.entry_iterator.advance());
+                    self.entry_iterator.advance()?;
 
                     if !is_first_entry {
-                        return Some(Err(DirectoryItemError::LongNameOrphaned.into()));
+                        return Err(DirectoryItemError::LongNameOrphaned.into());
                     }
 
                     match free_entry {
                         FreeDirectoryEntry::CurrentOnly => continue,
-                        FreeDirectoryEntry::AllFollowing => return None,
+                        FreeDirectoryEntry::AllFollowing => return Ok(None),
                     }
                 }
                 DirectoryEntry::LongName(long_name_entry) => {
                     builder = match builder.add_long_name_entry(long_name_entry) {
                         Ok(builder) => {
-                            propagate_iteration_error!(self.entry_iterator.advance());
+                            self.entry_iterator.advance()?;
                             builder
                         }
                         Err(directory_item_error) => {
                             if !self.should_skip_advancing_iterator(&directory_item_error) {
-                                propagate_iteration_error!(self.entry_iterator.advance());
+                                self.entry_iterator.advance()?;
                             }
 
-                            return Some(Err(directory_item_error.into()));
+                            return Err(directory_item_error.into());
                         }
                     };
                 }
                 DirectoryEntry::ShortName(short_name_entry) => {
-                    let item = propagate_iteration_error!(builder.build(short_name_entry));
-                    propagate_iteration_error!(self.entry_iterator.advance());
+                    let item = builder.build(short_name_entry)?;
+                    self.entry_iterator.advance()?;
 
-                    return Some(Ok(item));
+                    return Ok(Some(item));
                 }
             }
 
@@ -117,64 +107,65 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<D, S> DirectoryItemIterator<'_, D>
+impl<S> DirectoryItemIterator<'_, S>
 where
-    D: AsyncDevice<Stream = S>,
     S: AsyncRead + AsyncSeek,
 {
     pub async fn next_async(
         &mut self,
-    ) -> Option<Result<DirectoryItem, DeviceDirectoryItemIterationError<D>>> {
+    ) -> Result<Option<DirectoryItem>, DirectoryItemIterationError<S::Error>> {
         let mut is_first_entry = true;
         let mut builder = DirectoryItemBuilder::new();
 
         loop {
             let entry = match self.entry_iterator.peek_async().await {
-                Some(result) => propagate_iteration_error!(result),
-                None => {
+                Ok(Some(result)) => result,
+                Ok(None) => {
                     return if !is_first_entry {
-                        Some(Err(DirectoryItemError::LongNameOrphaned.into()))
+                        Err(DirectoryItemError::LongNameOrphaned.into())
                     } else {
-                        None
+                        Ok(None)
                     };
+                }
+                Err(error) => {
+                    self.entry_iterator.advance_async().await?;
+                    return Err(error.into());
                 }
             };
 
             match entry {
                 DirectoryEntry::Free(free_entry) => {
-                    propagate_iteration_error!(self.entry_iterator.advance_async().await);
+                    self.entry_iterator.advance_async().await;
 
                     if !is_first_entry {
-                        return Some(Err(DirectoryItemError::LongNameOrphaned.into()));
+                        return Err(DirectoryItemError::LongNameOrphaned.into());
                     }
 
                     match free_entry {
                         FreeDirectoryEntry::CurrentOnly => continue,
-                        FreeDirectoryEntry::AllFollowing => return None,
+                        FreeDirectoryEntry::AllFollowing => return Ok(None),
                     }
                 }
                 DirectoryEntry::LongName(long_name_entry) => {
                     builder = match builder.add_long_name_entry(long_name_entry) {
                         Ok(builder) => {
-                            propagate_iteration_error!(self.entry_iterator.advance_async().await);
+                            self.entry_iterator.advance_async().await?;
                             builder
                         }
                         Err(directory_item_error) => {
                             if !self.should_skip_advancing_iterator(&directory_item_error) {
-                                propagate_iteration_error!(
-                                    self.entry_iterator.advance_async().await
-                                );
+                                self.entry_iterator.advance_async().await?;
                             }
 
-                            return Some(Err(directory_item_error.into()));
+                            return Err(directory_item_error.into());
                         }
                     };
                 }
                 DirectoryEntry::ShortName(short_name_entry) => {
-                    let item = propagate_iteration_error!(builder.build(short_name_entry));
-                    propagate_iteration_error!(self.entry_iterator.advance_async().await);
+                    let item = builder.build(short_name_entry)?;
+                    self.entry_iterator.advance_async().await?;
 
-                    return Some(Ok(item));
+                    return Ok(Some(item));
                 }
             }
 

@@ -10,6 +10,22 @@ A FAT filesystem implementation optimized for embedded systems.
 | `sync`                 | Adds support for the sync API                                                                                  | Enabled | Disabling reduces total code required, this may slightly improve compilation performance if disabled.                                                                                                                                                                                                                             |
 | `unicode-case-folding` | Enables support for non-ASCII case insensitivity when attempting to find an existing directory or file entries | Enabled | Disabling will reduce the binary size by up to 1KB and improve exact case directory/file matching performance by up to 2x at the cost of no longer supporting non-ASCII case insensitivity.  This may consequently write directory or file entries in a standards non-conforming manner -- disable this feature at your own risk. |
 
+## Example Usage
+```rust
+let file_system = FileSystemBuilder::from_stream(StdFile::new(
+    File::open("disks/fat32.bin").unwrap(),
+  ))
+  .build()
+  .unwrap();
+
+let mut file = file_system
+  .open("foo.txt")
+  .unwrap();
+
+let mut bytes = [0; 5];
+file.read_exact(&mut bytes).unwrap();
+```
+
 ## License
 Licensed under either of
 

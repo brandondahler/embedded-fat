@@ -1,8 +1,8 @@
 use super::*;
+use crate::AsciiOnlyEncoder;
 use crate::directory_entry::{DirectoryEntryAttributes, ShortNameDirectoryEntry};
 use crate::file_name::ShortFileName;
 use crate::mock::{ScriptedDirectoryEntryIterator, VoidStream};
-use crate::{AsciiOnlyEncoder, SingleAccessDevice};
 
 #[cfg(feature = "sync")]
 mod next {
@@ -17,20 +17,16 @@ mod next {
             .file_size(1)
             .build();
 
-        let scripted_entry_iterator =
-            ScriptedDirectoryEntryIterator::<SingleAccessDevice<VoidStream>>::new()
-                .with_peek(|index| match index {
-                    0 => Some(Ok(expected_short_directory_entry.clone().into())),
-                    _ => panic!("Shouldn't be reached"),
-                })
-                .with_advance(|index| Ok(index == 0));
+        let scripted_entry_iterator = ScriptedDirectoryEntryIterator::<VoidStream>::new()
+            .with_peek(|index| match index {
+                0 => Ok(Some(expected_short_directory_entry.clone().into())),
+                _ => panic!("Shouldn't be reached"),
+            })
+            .with_advance(|index| Ok(index == 0));
 
         let mut item_iterator = DirectoryItemIterator::new(scripted_entry_iterator.into());
 
-        let result = item_iterator
-            .next()
-            .expect("Some should be returned")
-            .expect("Ok should be returned");
+        let result = item_iterator.next().unwrap().unwrap();
 
         assert_eq!(result.short_directory_entry, expected_short_directory_entry);
         assert_eq!(result.long_name, None);

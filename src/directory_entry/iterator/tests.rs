@@ -1,11 +1,12 @@
 use super::*;
+use crate::AllocationTableKind;
 use crate::allocation_table::AllocationTable;
 use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, FreeDirectoryEntry};
 use crate::mock::DataStream;
 use crate::utils::write_le_u32;
-use crate::{AllocationTableKind, SingleAccessDevice};
 use alloc::vec;
 use alloc::vec::Vec;
+use core::cell::RefCell;
 
 mod peek {
     use super::*;
@@ -14,11 +15,7 @@ mod peek {
     fn delegates_to_implementation() {
         let test_instance = TestInstance::new(1);
 
-        let result = test_instance
-            .file_iterator()
-            .peek()
-            .expect("Some should be returned")
-            .expect("Ok should be returned");
+        let result = test_instance.file_iterator().peek().unwrap().unwrap();
 
         assert!(
             matches!(
@@ -28,11 +25,7 @@ mod peek {
             "AllFollowing free directory entry should be returned"
         );
 
-        let result = test_instance
-            .table_iterator()
-            .peek()
-            .expect("Some should be returned")
-            .expect("Ok should be returned");
+        let result = test_instance.table_iterator().peek().unwrap().unwrap();
 
         assert!(
             matches!(
@@ -51,11 +44,7 @@ mod next {
     fn delegates_to_implementation() {
         let test_instance = TestInstance::new(1);
 
-        let result = test_instance
-            .file_iterator()
-            .next()
-            .expect("Some should be returned")
-            .expect("Ok should be returned");
+        let result = test_instance.file_iterator().next().unwrap().unwrap();
 
         assert!(
             matches!(
@@ -65,11 +54,7 @@ mod next {
             "AllFollowing free directory entry should be returned"
         );
 
-        let result = test_instance
-            .table_iterator()
-            .next()
-            .expect("Some should be returned")
-            .expect("Ok should be returned");
+        let result = test_instance.table_iterator().next().unwrap().unwrap();
 
         assert!(
             matches!(
@@ -88,17 +73,11 @@ mod advance {
     fn delegates_to_implementation() {
         let test_instance = TestInstance::new(1);
 
-        let result = test_instance
-            .file_iterator()
-            .advance()
-            .expect("Ok should be returned");
+        let result = test_instance.file_iterator().advance().unwrap();
 
         assert_eq!(result, false, "False should be returned");
 
-        let result = test_instance
-            .table_iterator()
-            .advance()
-            .expect("Ok should be returned");
+        let result = test_instance.table_iterator().advance().unwrap();
 
         assert_eq!(result, false, "False should be returned");
     }
@@ -115,8 +94,8 @@ mod peek_async {
             .file_iterator()
             .peek_async()
             .await
-            .expect("Some should be returned")
-            .expect("Ok should be returned");
+            .unwrap()
+            .unwrap();
 
         assert!(
             matches!(
@@ -130,8 +109,8 @@ mod peek_async {
             .table_iterator()
             .peek_async()
             .await
-            .expect("Some should be returned")
-            .expect("Ok should be returned");
+            .unwrap()
+            .unwrap();
 
         assert!(
             matches!(
@@ -150,11 +129,7 @@ mod advance_async {
     async fn delegates_to_implementation() {
         let test_instance = TestInstance::new(1);
 
-        let result = test_instance
-            .file_iterator()
-            .advance_async()
-            .await
-            .expect("Ok should be returned");
+        let result = test_instance.file_iterator().advance_async().await.unwrap();
 
         assert_eq!(result, false, "False should be returned");
 
@@ -162,7 +137,7 @@ mod advance_async {
             .table_iterator()
             .advance_async()
             .await
-            .expect("Ok should be returned");
+            .unwrap();
 
         assert_eq!(result, false, "False should be returned");
     }
@@ -179,8 +154,8 @@ mod next_async {
             .file_iterator()
             .next_async()
             .await
-            .expect("Some should be returned")
-            .expect("Ok should be returned");
+            .unwrap()
+            .unwrap();
 
         assert!(
             matches!(
@@ -194,8 +169,8 @@ mod next_async {
             .table_iterator()
             .next_async()
             .await
-            .expect("Some should be returned")
-            .expect("Ok should be returned");
+            .unwrap()
+            .unwrap();
 
         assert!(
             matches!(
@@ -207,10 +182,10 @@ mod next_async {
     }
 }
 
-type TestInstanceDevice = SingleAccessDevice<DataStream<Vec<u8>>>;
+type TestInstanceStream = DataStream<Vec<u8>>;
 
 struct TestInstance {
-    device: TestInstanceDevice,
+    device: RefCell<TestInstanceStream>,
     allocation_table: AllocationTable,
 
     data_region_base_address: u64,
@@ -228,7 +203,7 @@ impl TestInstance {
         }
 
         Self {
-            device: SingleAccessDevice::new(DataStream::from_bytes(data)),
+            device: RefCell::new(DataStream::from_bytes(data)),
             allocation_table: AllocationTable::new(allocation_table_kind, 0, 10),
 
             entry_count,
@@ -236,7 +211,7 @@ impl TestInstance {
         }
     }
 
-    fn file_iterator(&self) -> DirectoryEntryIterator<'_, TestInstanceDevice> {
+    fn file_iterator(&self) -> DirectoryEntryIterator<'_, TestInstanceStream> {
         let iterator = DirectoryFileEntryIterator::new(
             &self.device,
             &self.allocation_table,
@@ -248,7 +223,7 @@ impl TestInstance {
         iterator.into()
     }
 
-    fn table_iterator(&self) -> DirectoryEntryIterator<'_, TestInstanceDevice> {
+    fn table_iterator(&self) -> DirectoryEntryIterator<'_, TestInstanceStream> {
         let iterator = DirectoryTableEntryIterator::new(
             &self.device,
             self.data_region_base_address,

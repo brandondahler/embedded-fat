@@ -12,7 +12,6 @@ mod display {
     #[test]
     fn produces_non_empty_value() {
         let values = [
-            FileError::DeviceError(IoError::default()),
             FileError::SeekPositionBeyondLimits(0),
             FileError::SeekPositionImpossible(0),
             FileError::StreamEndReached,
@@ -35,7 +34,7 @@ mod kind {
     #[test]
     fn stream_error_delegates_to_contained_error() {
         assert_eq!(
-            FileError::<CoreError, IoError>::StreamError(IoError(ErrorKind::AddrInUse)).kind(),
+            FileError::<IoError>::StreamError(IoError(ErrorKind::AddrInUse)).kind(),
             ErrorKind::AddrInUse
         );
     }
@@ -43,7 +42,7 @@ mod kind {
     #[test]
     fn non_stream_error_returns_other() {
         assert_eq!(
-            FileError::<CoreError, IoError>::DeviceError(CoreError).kind(),
+            FileError::<IoError>::SeekPositionBeyondLimits(0).kind(),
             ErrorKind::Other
         );
     }

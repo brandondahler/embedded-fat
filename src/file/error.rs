@@ -7,12 +7,10 @@ use core::fmt::{Display, Formatter};
 use embedded_io::{ErrorKind, ReadExactError};
 
 #[derive(Clone, Debug)]
-pub enum FileError<DE, SE>
+pub enum FileError<SE>
 where
-    DE: Error,
     SE: embedded_io::Error,
 {
-    DeviceError(DE),
     SeekPositionBeyondLimits(u64),
     SeekPositionImpossible(i64),
     StreamEndReached,
@@ -20,21 +18,14 @@ where
     UnexpectedAllocationTableEntryEncountered,
 }
 
-impl<DE, SE> Error for FileError<DE, SE>
-where
-    DE: Error,
-    SE: embedded_io::Error,
-{
-}
+impl<SE> Error for FileError<SE> where SE: embedded_io::Error {}
 
-impl<DE, SE> Display for FileError<DE, SE>
+impl<SE> Display for FileError<SE>
 where
-    DE: Error,
     SE: embedded_io::Error,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
-            FileError::DeviceError(e) => write!(f, "device error occurred: {}", e),
             FileError::SeekPositionBeyondLimits(desired_address) => write!(
                 f,
                 "seek position provided results in address beyond allowed limits: {}",
@@ -55,9 +46,8 @@ where
     }
 }
 
-impl<DE, SE> embedded_io::Error for FileError<DE, SE>
+impl<SE> embedded_io::Error for FileError<SE>
 where
-    DE: Error,
     SE: embedded_io::Error,
 {
     fn kind(&self) -> ErrorKind {
@@ -68,9 +58,8 @@ where
     }
 }
 
-impl<DE, SE> From<SE> for FileError<DE, SE>
+impl<SE> From<SE> for FileError<SE>
 where
-    DE: Error,
     SE: embedded_io::Error,
 {
     fn from(value: SE) -> Self {
@@ -78,9 +67,8 @@ where
     }
 }
 
-impl<DE, SE> From<ReadExactError<SE>> for FileError<DE, SE>
+impl<SE> From<ReadExactError<SE>> for FileError<SE>
 where
-    DE: Error,
     SE: embedded_io::Error,
 {
     fn from(value: ReadExactError<SE>) -> Self {
@@ -91,9 +79,8 @@ where
     }
 }
 
-impl<DE, SE> From<AllocationTableReadError<SE>> for FileError<DE, SE>
+impl<SE> From<AllocationTableReadError<SE>> for FileError<SE>
 where
-    DE: Error,
     SE: embedded_io::Error,
 {
     fn from(value: AllocationTableReadError<SE>) -> Self {

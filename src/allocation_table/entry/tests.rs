@@ -81,9 +81,7 @@ mod as_physical_entry {
 
         for table_kind in AllocationTableKind::iter() {
             for value in &values {
-                let physical_entry = value
-                    .as_physical_entry(table_kind)
-                    .expect("Ok should be returned");
+                let physical_entry = value.as_physical_entry(table_kind).unwrap();
 
                 assert_eq!(physical_entry.as_logical_entry(), *value);
             }

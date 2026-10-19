@@ -7,28 +7,28 @@ mod tests;
 pub use file::*;
 pub use table::*;
 
-use crate::Device;
 use crate::directory_entry::DirectoryEntryIterator;
 use crate::directory_item::DirectoryItemIterator;
+use embedded_io::ErrorType;
 
 #[derive(Clone, Debug)]
-pub enum Directory<'a, D>
+pub enum Directory<'a, S>
 where
-    D: Device,
+    S: ErrorType,
 {
-    Table(DirectoryTable<'a, D>),
-    File(DirectoryFile<'a, D>),
+    Table(DirectoryTable<'a, S>),
+    File(DirectoryFile<'a, S>),
 }
 
-impl<'a, D> Directory<'a, D>
+impl<'a, S> Directory<'a, S>
 where
-    D: Device,
+    S: ErrorType,
 {
-    pub fn items(&'a self) -> DirectoryItemIterator<'a, D> {
+    pub fn items(&'a self) -> DirectoryItemIterator<'a, S> {
         DirectoryItemIterator::new(self.entries())
     }
 
-    fn entries(&'a self) -> DirectoryEntryIterator<'a, D> {
+    fn entries(&'a self) -> DirectoryEntryIterator<'a, S> {
         match self {
             Directory::Table(table) => table.entries().into(),
             Directory::File(file) => file.entries().into(),
@@ -36,20 +36,20 @@ where
     }
 }
 
-impl<'a, D> From<DirectoryTable<'a, D>> for Directory<'a, D>
+impl<'a, S> From<DirectoryTable<'a, S>> for Directory<'a, S>
 where
-    D: Device,
+    S: ErrorType,
 {
-    fn from(value: DirectoryTable<'a, D>) -> Self {
+    fn from(value: DirectoryTable<'a, S>) -> Self {
         Self::Table(value)
     }
 }
 
-impl<'a, D> From<DirectoryFile<'a, D>> for Directory<'a, D>
+impl<'a, S> From<DirectoryFile<'a, S>> for Directory<'a, S>
 where
-    D: Device,
+    S: ErrorType,
 {
-    fn from(value: DirectoryFile<'a, D>) -> Self {
+    fn from(value: DirectoryFile<'a, S>) -> Self {
         Self::File(value)
     }
 }

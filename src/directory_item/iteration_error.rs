@@ -1,42 +1,32 @@
 #[cfg(test)]
 mod tests;
 
-use crate::Device;
 use crate::directory_entry::{DirectoryEntryError, DirectoryEntryIterationError};
 use crate::directory_item::DirectoryItemError;
 use core::error::Error;
 use core::fmt::{Display, Formatter};
 use embedded_io::ErrorType;
 
-pub type DeviceDirectoryItemIterationError<D> =
-    DirectoryItemIterationError<<D as Device>::Error, <<D as Device>::Stream as ErrorType>::Error>;
-
 #[derive(Clone, Debug)]
-pub enum DirectoryItemIterationError<DE, SE>
+pub enum DirectoryItemIterationError<SE>
 where
-    DE: Error,
     SE: embedded_io::Error,
 {
     AllocationTableEntryTypeUnexpected,
-    DeviceError(DE),
     EntryInvalid(DirectoryEntryError),
     ItemError(DirectoryItemError),
     StreamEndReached,
     StreamError(SE),
 }
 
-impl<DE, SE> Display for DirectoryItemIterationError<DE, SE>
+impl<SE> Display for DirectoryItemIterationError<SE>
 where
-    DE: Error,
     SE: embedded_io::Error,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
             DirectoryItemIterationError::AllocationTableEntryTypeUnexpected => {
                 write!(f, "the allocation table entry was an unexpected type")
-            }
-            DirectoryItemIterationError::DeviceError(e) => {
-                write!(f, "device error occurred: {}", e)
             }
             DirectoryItemIterationError::EntryInvalid(e) => {
                 write!(f, "an invalid entry was encountered: {}", e)
@@ -54,24 +44,17 @@ where
     }
 }
 
-impl<DE, SE> Error for DirectoryItemIterationError<DE, SE>
-where
-    DE: Error,
-    SE: embedded_io::Error,
-{
-}
+impl<SE> Error for DirectoryItemIterationError<SE> where SE: embedded_io::Error {}
 
-impl<DE, SE> From<DirectoryEntryIterationError<DE, SE>> for DirectoryItemIterationError<DE, SE>
+impl<SE> From<DirectoryEntryIterationError<SE>> for DirectoryItemIterationError<SE>
 where
-    DE: Error,
     SE: embedded_io::Error,
 {
-    fn from(value: DirectoryEntryIterationError<DE, SE>) -> Self {
+    fn from(value: DirectoryEntryIterationError<SE>) -> Self {
         match value {
             DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected => {
                 Self::AllocationTableEntryTypeUnexpected
             }
-            DirectoryEntryIterationError::DeviceError(e) => Self::DeviceError(e),
             DirectoryEntryIterationError::EntryInvalid(e) => Self::EntryInvalid(e),
             DirectoryEntryIterationError::StreamEndReached => Self::StreamEndReached,
             DirectoryEntryIterationError::StreamError(e) => Self::StreamError(e),
@@ -79,9 +62,8 @@ where
     }
 }
 
-impl<DE, SE> From<DirectoryItemError> for DirectoryItemIterationError<DE, SE>
+impl<SE> From<DirectoryItemError> for DirectoryItemIterationError<SE>
 where
-    DE: Error,
     SE: embedded_io::Error,
 {
     fn from(value: DirectoryItemError) -> Self {

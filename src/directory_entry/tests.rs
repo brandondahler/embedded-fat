@@ -10,7 +10,7 @@ mod from_bytes {
         let mut data = [0x00; DIRECTORY_ENTRY_SIZE];
         data[0] = 0x00;
 
-        let entry = DirectoryEntry::from_bytes(&data).expect("Ok should be returned");
+        let entry = DirectoryEntry::from_bytes(&data).unwrap();
 
         assert!(
             matches!(
@@ -26,7 +26,7 @@ mod from_bytes {
         let mut data = [0x00; DIRECTORY_ENTRY_SIZE];
         data[0] = 0xE5;
 
-        let entry = DirectoryEntry::from_bytes(&data).expect("Ok should be returned");
+        let entry = DirectoryEntry::from_bytes(&data).unwrap();
 
         assert!(
             matches!(entry, DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)),
@@ -46,7 +46,7 @@ mod from_bytes {
         let mut data = [0x00; DIRECTORY_ENTRY_SIZE];
         short_name_entry.write(&mut data);
 
-        let entry = DirectoryEntry::from_bytes(&data).expect("Ok should be returned");
+        let entry = DirectoryEntry::from_bytes(&data).unwrap();
 
         assert!(
             matches!(entry, DirectoryEntry::ShortName(_)),
@@ -59,7 +59,7 @@ mod from_bytes {
         let mut data = [0x00; DIRECTORY_ENTRY_SIZE];
         data[0] = 0x01;
 
-        let error = DirectoryEntry::from_bytes(&data).expect_err("Err should be returned");
+        let error = DirectoryEntry::from_bytes(&data).unwrap_err();
 
         assert!(
             matches!(error, DirectoryEntryError::ShortNameEntryInvalid(_)),
@@ -82,7 +82,7 @@ mod from_bytes {
         let mut data = [0x00; DIRECTORY_ENTRY_SIZE];
         long_name_entry.write(&mut data);
 
-        let entry = DirectoryEntry::from_bytes(&data).expect("Ok should be returned");
+        let entry = DirectoryEntry::from_bytes(&data).unwrap();
 
         assert!(
             matches!(entry, DirectoryEntry::LongName(_)),
@@ -96,7 +96,7 @@ mod from_bytes {
         data[0] = 0x3F;
         data[11] = 0x0F;
 
-        let error = DirectoryEntry::from_bytes(&data).expect_err("Err should be returned");
+        let error = DirectoryEntry::from_bytes(&data).unwrap_err();
 
         assert!(
             matches!(error, DirectoryEntryError::LongNameEntryInvalid(_)),

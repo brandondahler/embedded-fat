@@ -3,32 +3,26 @@ mod error;
 #[cfg(test)]
 mod tests;
 
+use core::cell::RefCell;
 pub use error::*;
 
-use crate::Device;
 use crate::allocation_table::{AllocationTable, AllocationTableEntry};
 use core::cmp::min;
 use core::ops::DerefMut;
 use embedded_io::{ErrorType, SeekFrom};
 
 #[cfg(feature = "sync")]
-use {
-    crate::{SyncDevice, SyncFlushableDevice},
-    embedded_io::{Read, Seek, Write},
-};
+use embedded_io::{Read, Seek, Write};
 
 #[cfg(feature = "async")]
-use {
-    crate::{AsyncDevice, AsyncFlushableDevice},
-    embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite},
-};
+use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
 #[derive(Clone, Debug)]
-pub struct File<'a, D>
+pub struct File<'a, S>
 where
-    D: Device,
+    S: ErrorType,
 {
-    device: &'a D,
+    device: &'a RefCell<S>,
     allocation_table: &'a AllocationTable,
 
     data_region_base_address: u64,
@@ -43,12 +37,12 @@ where
     current_cluster_offset: u32,
 }
 
-impl<'a, D> File<'a, D>
+impl<'a, S> File<'a, S>
 where
-    D: Device,
+    S: ErrorType,
 {
     pub fn new(
-        device: &'a D,
+        device: &'a RefCell<S>,
         allocation_table: &'a AllocationTable,
         data_region_base_address: u64,
         bytes_per_cluster: u32,
@@ -113,17 +107,16 @@ where
     }
 }
 
-impl<D> ErrorType for File<'_, D>
+impl<S> ErrorType for File<'_, S>
 where
-    D: Device,
+    S: ErrorType,
 {
-    type Error = FileError<D::Error, <D::Stream as ErrorType>::Error>;
+    type Error = FileError<S::Error>;
 }
 
 #[cfg(feature = "sync")]
-impl<D, S> Read for File<'_, D>
+impl<S> Read for File<'_, S>
 where
-    D: SyncDevice<Stream = S>,
     S: Read + Seek,
 {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
@@ -134,14 +127,12 @@ where
             return Ok(0);
         }
 
-        let actual_read_size = self
-            .device
-            .with_stream(|stream| -> Result<usize, Self::Error> {
-                stream.seek(SeekFrom::Start(self.current_address()))?;
+        let actual_read_size = {
+            let mut stream = self.device.borrow_mut();
 
-                Ok(stream.read(&mut buf[0..target_read_size])?)
-            })
-            .map_err(FileError::DeviceError)??;
+            stream.seek(SeekFrom::Start(self.current_address()))?;
+            stream.read(&mut buf[0..target_read_size])?
+        };
 
         self.seek(SeekFrom::Current(actual_read_size as i64))?;
 
@@ -150,9 +141,8 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<D, S> AsyncRead for File<'_, D>
+impl<S> AsyncRead for File<'_, S>
 where
-    D: AsyncDevice<Stream = S>,
     S: AsyncRead + AsyncSeek,
 {
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
@@ -162,15 +152,12 @@ where
             return Ok(0);
         }
 
-        let actual_read_size = self
-            .device
-            .with_stream(async |stream| -> Result<usize, Self::Error> {
-                stream.seek(SeekFrom::Start(self.current_address())).await?;
+        let actual_read_size = {
+            let mut stream = self.device.borrow_mut();
 
-                Ok(stream.read(&mut buf[0..target_read_size]).await?)
-            })
-            .await
-            .map_err(FileError::DeviceError)??;
+            stream.seek(SeekFrom::Start(self.current_address())).await?;
+            stream.read(&mut buf[0..target_read_size]).await?
+        };
 
         self.seek(SeekFrom::Current(actual_read_size as i64))
             .await?;
@@ -180,9 +167,8 @@ where
 }
 
 #[cfg(feature = "sync")]
-impl<D, S> Seek for File<'_, D>
+impl<S> Seek for File<'_, S>
 where
-    D: SyncDevice<Stream = S>,
     S: Read + Seek,
 {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, Self::Error> {
@@ -206,30 +192,28 @@ where
                 new_cluster_offset = desired_position as i64;
             }
 
-            self.device
-                .with_stream(|stream| -> Result<(), Self::Error> {
-                    // Navigate forward until we get to the correct cluster or reach EOF
-                    while new_cluster_offset > self.bytes_per_cluster as i64 {
-                        match self
-                            .allocation_table
-                            .read_entry(stream, new_cluster_number)?
-                        {
-                            AllocationTableEntry::NextClusterNumber(next_cluster_number) => {
-                                new_cluster_number = next_cluster_number;
-                                new_cluster_offset -= self.bytes_per_cluster as i64;
-                            }
-                            AllocationTableEntry::EndOfFile => break,
-                            AllocationTableEntry::Free
-                            | AllocationTableEntry::BadSector
-                            | AllocationTableEntry::Reserved => {
-                                return Err(FileError::UnexpectedAllocationTableEntryEncountered);
-                            }
+            {
+                let mut stream = self.device.borrow_mut();
+
+                // Navigate forward until we get to the correct cluster or reach EOF
+                while new_cluster_offset > self.bytes_per_cluster as i64 {
+                    match self
+                        .allocation_table
+                        .read_entry(&mut *stream, new_cluster_number)?
+                    {
+                        AllocationTableEntry::NextClusterNumber(next_cluster_number) => {
+                            new_cluster_number = next_cluster_number;
+                            new_cluster_offset -= self.bytes_per_cluster as i64;
+                        }
+                        AllocationTableEntry::EndOfFile => break,
+                        AllocationTableEntry::Free
+                        | AllocationTableEntry::BadSector
+                        | AllocationTableEntry::Reserved => {
+                            return Err(FileError::UnexpectedAllocationTableEntryEncountered);
                         }
                     }
-
-                    Ok(())
-                })
-                .map_err(FileError::DeviceError)??;
+                }
+            }
 
             // Clamp to the end of the cluster if the offset is beyond the cluster's end still
             new_cluster_offset = min(new_cluster_offset, self.bytes_per_cluster as i64);
@@ -244,9 +228,8 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<D, S> AsyncSeek for File<'_, D>
+impl<S> AsyncSeek for File<'_, S>
 where
-    D: AsyncDevice<Stream = S>,
     S: AsyncRead + AsyncSeek,
 {
     async fn seek(&mut self, pos: SeekFrom) -> Result<u64, Self::Error> {
@@ -270,32 +253,28 @@ where
                 new_cluster_offset = desired_position as i64;
             }
 
-            self.device
-                .with_stream(async |stream| -> Result<(), Self::Error> {
-                    // Navigate forward until we get to the correct cluster or reach EOF
-                    while new_cluster_offset >= self.bytes_per_cluster as i64 {
-                        match self
-                            .allocation_table
-                            .read_entry_async(stream, new_cluster_number)
-                            .await?
-                        {
-                            AllocationTableEntry::NextClusterNumber(next_cluster_number) => {
-                                new_cluster_number = next_cluster_number;
-                                new_cluster_offset -= self.bytes_per_cluster as i64;
-                            }
-                            AllocationTableEntry::EndOfFile => break,
-                            AllocationTableEntry::Free
-                            | AllocationTableEntry::BadSector
-                            | AllocationTableEntry::Reserved => {
-                                return Err(FileError::UnexpectedAllocationTableEntryEncountered);
-                            }
+            {
+                let mut stream = self.device.borrow_mut();
+                // Navigate forward until we get to the correct cluster or reach EOF
+                while new_cluster_offset >= self.bytes_per_cluster as i64 {
+                    match self
+                        .allocation_table
+                        .read_entry_async(&mut *stream, new_cluster_number)
+                        .await?
+                    {
+                        AllocationTableEntry::NextClusterNumber(next_cluster_number) => {
+                            new_cluster_number = next_cluster_number;
+                            new_cluster_offset -= self.bytes_per_cluster as i64;
+                        }
+                        AllocationTableEntry::EndOfFile => break,
+                        AllocationTableEntry::Free
+                        | AllocationTableEntry::BadSector
+                        | AllocationTableEntry::Reserved => {
+                            return Err(FileError::UnexpectedAllocationTableEntryEncountered);
                         }
                     }
-
-                    Ok(())
-                })
-                .await
-                .map_err(FileError::DeviceError)??;
+                }
+            }
 
             // Clamp to the end of the cluster if the offset is beyond the cluster's end still
             new_cluster_offset = min(new_cluster_offset, self.bytes_per_cluster as i64);
@@ -310,9 +289,8 @@ where
 }
 
 #[cfg(feature = "sync")]
-impl<D, S> Write for File<'_, D>
+impl<S> Write for File<'_, S>
 where
-    D: SyncFlushableDevice<Stream = S>,
     S: Read + Seek + Write,
 {
     fn write(&mut self, _buf: &[u8]) -> Result<usize, Self::Error> {
@@ -320,14 +298,18 @@ where
     }
 
     fn flush(&mut self) -> Result<(), Self::Error> {
-        self.device.flush().map_err(FileError::DeviceError)
+        {
+            let mut stream = self.device.borrow_mut();
+            stream.flush()?;
+        }
+
+        Ok(())
     }
 }
 
 #[cfg(feature = "async")]
-impl<D, S> AsyncWrite for File<'_, D>
+impl<S> AsyncWrite for File<'_, S>
 where
-    D: AsyncFlushableDevice<Stream = S>,
     S: AsyncRead + AsyncSeek + AsyncWrite,
 {
     async fn write(&mut self, _buf: &[u8]) -> Result<usize, Self::Error> {
@@ -335,6 +317,11 @@ where
     }
 
     async fn flush(&mut self) -> Result<(), Self::Error> {
-        self.device.flush().await.map_err(FileError::DeviceError)
+        {
+            let mut stream = self.device.borrow_mut();
+            stream.flush().await?;
+        }
+
+        Ok(())
     }
 }

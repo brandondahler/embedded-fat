@@ -1,5 +1,4 @@
 use super::*;
-use crate::Device;
 use crate::mock::{DataStream, ErroringStream, ErroringStreamScenarios, IoError, VoidStream};
 use alloc::rc::Rc;
 use core::cell::RefCell;

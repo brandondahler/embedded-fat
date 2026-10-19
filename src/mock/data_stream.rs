@@ -1,4 +1,3 @@
-use crate::Device;
 use crate::mock::IoError;
 use alloc::rc::Rc;
 use core::borrow::Borrow;

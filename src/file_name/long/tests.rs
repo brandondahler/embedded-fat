@@ -22,7 +22,7 @@ mod from_str {
 
     #[test]
     fn empty_input_returns_error() {
-        let result = LongFileName::from_str("").expect_err("Err should be returned");
+        let result = LongFileName::from_str("").unwrap_err();
 
         assert!(
             matches!(result, LongFileNameStringError::InputEmpty),
@@ -32,7 +32,7 @@ mod from_str {
 
     #[test]
     fn too_long_input_returns_error() {
-        let result = LongFileName::from_str(&"a".repeat(256)).expect_err("Err should be returned");
+        let result = LongFileName::from_str(&"a".repeat(256)).unwrap_err();
 
         assert_eq!(
             result,
@@ -52,7 +52,7 @@ mod from_str {
             let mut invalid_character_buffer = [0; 4];
             let input = invalid_character.encode_utf8(&mut invalid_character_buffer);
 
-            let result = LongFileName::from_str(&input).expect_err("Err should be returned");
+            let result = LongFileName::from_str(&input).unwrap_err();
 
             assert!(
                 matches!(

@@ -1,4 +1,3 @@
-use crate::Device;
 use bitflags::bitflags;
 use core::fmt::Display;
 use embedded_io::{ErrorType, SeekFrom};
@@ -6,6 +5,7 @@ use embedded_io::{ErrorType, SeekFrom};
 #[cfg(feature = "sync")]
 use embedded_io::{Read, Seek, Write};
 
+use crate::mock::{IoError, VoidStream};
 #[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
@@ -47,6 +47,16 @@ where
             error,
             error_scenarios,
         }
+    }
+}
+
+impl Default for ErroringStream<VoidStream, IoError> {
+    fn default() -> Self {
+        Self::new(
+            VoidStream::new(),
+            IoError::default(),
+            ErroringStreamScenarios::all(),
+        )
     }
 }
 

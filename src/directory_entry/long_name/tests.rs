@@ -8,8 +8,7 @@ mod from_bytes {
     fn parses_entry_correctly() {
         let mut test_data = TestData::valid();
 
-        let entry = LongNameDirectoryEntry::from_bytes(&mut test_data.bytes)
-            .expect("Ok should be returned");
+        let entry = LongNameDirectoryEntry::from_bytes(&mut test_data.bytes).unwrap();
 
         assert_eq!(
             entry.is_last_entry(),
@@ -38,8 +37,7 @@ mod from_bytes {
         let mut data = TestData::valid().bytes;
         data[0] = 0x00;
 
-        let entry =
-            LongNameDirectoryEntry::from_bytes(&mut data).expect_err("Err should be returned");
+        let entry = LongNameDirectoryEntry::from_bytes(&mut data).unwrap_err();
 
         assert!(
             matches!(entry, LongNameDirectoryEntryError::EntryNumberInvalid),
@@ -52,8 +50,7 @@ mod from_bytes {
         let mut data = TestData::valid().bytes;
         data[0] = 0x3F;
 
-        let error =
-            LongNameDirectoryEntry::from_bytes(&mut data).expect_err("Err should be returned");
+        let error = LongNameDirectoryEntry::from_bytes(&mut data).unwrap_err();
 
         assert!(
             matches!(error, LongNameDirectoryEntryError::EntryNumberInvalid),
@@ -68,7 +65,7 @@ mod write {
     #[test]
     fn roundtrips_correctly() {
         let data = TestData::valid().bytes;
-        let entry = LongNameDirectoryEntry::from_bytes(&data).expect("Ok should be returned");
+        let entry = LongNameDirectoryEntry::from_bytes(&data).unwrap();
 
         let mut result = [0x00; DIRECTORY_ENTRY_SIZE];
         entry.write(&mut result);

@@ -8,37 +8,26 @@ use core::fmt::{Display, Formatter};
 use embedded_io::ReadExactError;
 
 #[derive(Clone, Debug)]
-pub enum DirectoryEntryIterationError<DE, SE>
+pub enum DirectoryEntryIterationError<SE>
 where
-    DE: Error,
     SE: embedded_io::Error,
 {
     AllocationTableEntryTypeUnexpected,
     EntryInvalid(DirectoryEntryError),
-    DeviceError(DE),
     StreamEndReached,
     StreamError(SE),
 }
 
-impl<DE, SE> Error for DirectoryEntryIterationError<DE, SE>
-where
-    DE: Error,
-    SE: embedded_io::Error,
-{
-}
+impl<SE> Error for DirectoryEntryIterationError<SE> where SE: embedded_io::Error {}
 
-impl<DE, SE> Display for DirectoryEntryIterationError<DE, SE>
+impl<SE> Display for DirectoryEntryIterationError<SE>
 where
-    DE: Error,
     SE: embedded_io::Error,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
             DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected => {
                 write!(f, "the allocation table entry was an unexpected type")
-            }
-            DirectoryEntryIterationError::DeviceError(e) => {
-                write!(f, "device error occurred: {}", e)
             }
             DirectoryEntryIterationError::EntryInvalid(e) => {
                 write!(f, "an entry was invalid: {}", e)
@@ -53,9 +42,8 @@ where
     }
 }
 
-impl<DE, SE> From<SE> for DirectoryEntryIterationError<DE, SE>
+impl<SE> From<SE> for DirectoryEntryIterationError<SE>
 where
-    DE: Error,
     SE: embedded_io::Error,
 {
     fn from(value: SE) -> Self {
@@ -63,9 +51,8 @@ where
     }
 }
 
-impl<DE, SE> From<AllocationTableReadError<SE>> for DirectoryEntryIterationError<DE, SE>
+impl<SE> From<AllocationTableReadError<SE>> for DirectoryEntryIterationError<SE>
 where
-    DE: Error,
     SE: embedded_io::Error,
 {
     fn from(value: AllocationTableReadError<SE>) -> Self {
@@ -76,9 +63,8 @@ where
     }
 }
 
-impl<DE, SE> From<DirectoryEntryError> for DirectoryEntryIterationError<DE, SE>
+impl<SE> From<DirectoryEntryError> for DirectoryEntryIterationError<SE>
 where
-    DE: Error,
     SE: embedded_io::Error,
 {
     fn from(value: DirectoryEntryError) -> Self {
@@ -86,9 +72,8 @@ where
     }
 }
 
-impl<DE, SE> From<ReadExactError<SE>> for DirectoryEntryIterationError<DE, SE>
+impl<SE> From<ReadExactError<SE>> for DirectoryEntryIterationError<SE>
 where
-    DE: Error,
     SE: embedded_io::Error,
 {
     fn from(value: ReadExactError<SE>) -> Self {

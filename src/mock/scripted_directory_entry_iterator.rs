@@ -1,7 +1,5 @@
-use crate::Device;
 use crate::directory_entry::{
     DirectoryEntry, DirectoryEntryIterationError, DirectoryEntryIterator,
-    DirectoryEntryIteratorResult,
 };
 use alloc::boxed::Box;
 use alloc::rc::Rc;
@@ -10,47 +8,47 @@ use core::fmt::Debug;
 use embedded_io::{ErrorType, SeekFrom};
 
 #[cfg(feature = "sync")]
-use {
-    crate::device::SyncDevice,
-    embedded_io::{Read, Seek},
-};
+use embedded_io::{Read, Seek};
 
 use crate::mock::{CoreError, IoError};
 #[cfg(feature = "async")]
-use {
-    crate::AsyncDevice,
-    embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek},
-};
+use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
-#[derive(Clone)]
-pub struct ScriptedDirectoryEntryIterator<'a, D>
+pub struct ScriptedDirectoryEntryIterator<'a, S>
 where
-    D: Device,
+    S: ErrorType,
 {
     call_index: usize,
 
-    peek: Rc<dyn Fn(usize) -> Option<DirectoryEntryIteratorResult<DirectoryEntry, D>> + 'a>,
-    advance: Rc<dyn Fn(usize) -> DirectoryEntryIteratorResult<bool, D> + 'a>,
-    next: Rc<dyn Fn(usize) -> Option<DirectoryEntryIteratorResult<DirectoryEntry, D>> + 'a>,
+    peek: Rc<
+        dyn Fn(usize) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>>
+            + 'a,
+    >,
+    advance: Rc<dyn Fn(usize) -> Result<bool, DirectoryEntryIterationError<S::Error>> + 'a>,
+    next: Rc<
+        dyn Fn(usize) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>>
+            + 'a,
+    >,
 }
 
-impl<'a, D> ScriptedDirectoryEntryIterator<'a, D>
+impl<'a, S> ScriptedDirectoryEntryIterator<'a, S>
 where
-    D: Device,
+    S: ErrorType,
 {
     pub fn new() -> Self {
         Self {
             call_index: 0,
 
-            peek: Rc::new(|_| None),
+            peek: Rc::new(|_| Ok(None)),
             advance: Rc::new(|_| Ok(false)),
-            next: Rc::new(|_| None),
+            next: Rc::new(|_| Ok(None)),
         }
     }
 
     pub fn with_peek<FP>(mut self, peek: FP) -> Self
     where
-        FP: Fn(usize) -> Option<DirectoryEntryIteratorResult<DirectoryEntry, D>> + 'a,
+        FP: Fn(usize) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>>
+            + 'a,
     {
         self.peek = Rc::new(peek);
         self
@@ -58,7 +56,7 @@ where
 
     pub fn with_advance<FA>(mut self, advance: FA) -> Self
     where
-        FA: Fn(usize) -> DirectoryEntryIteratorResult<bool, D> + 'a,
+        FA: Fn(usize) -> Result<bool, DirectoryEntryIterationError<S::Error>> + 'a,
     {
         self.advance = Rc::new(advance);
         self
@@ -66,16 +64,32 @@ where
 
     pub fn with_next<FN>(mut self, next: FN) -> Self
     where
-        FN: Fn(usize) -> Option<DirectoryEntryIteratorResult<DirectoryEntry, D>> + 'a,
+        FN: Fn(usize) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>>
+            + 'a,
     {
         self.next = Rc::new(next);
         self
     }
 }
 
-impl<D> Debug for ScriptedDirectoryEntryIterator<'_, D>
+impl<S> Clone for ScriptedDirectoryEntryIterator<'_, S>
 where
-    D: Device,
+    S: ErrorType,
+{
+    fn clone(&self) -> Self {
+        Self {
+            call_index: self.call_index,
+
+            advance: self.advance.clone(),
+            next: self.next.clone(),
+            peek: self.peek.clone(),
+        }
+    }
+}
+
+impl<S> Debug for ScriptedDirectoryEntryIterator<'_, S>
+where
+    S: ErrorType,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("ScriptedDirectoryEntryIterator")
@@ -85,22 +99,24 @@ where
 }
 
 #[cfg(feature = "sync")]
-impl<D> ScriptedDirectoryEntryIterator<'_, D>
+impl<S> ScriptedDirectoryEntryIterator<'_, S>
 where
-    D: SyncDevice,
+    S: ErrorType,
 {
-    pub fn peek(&self) -> Option<DirectoryEntryIteratorResult<DirectoryEntry, D>> {
+    pub fn peek(&self) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>> {
         (self.peek)(self.call_index)
     }
 
-    pub fn advance(&mut self) -> DirectoryEntryIteratorResult<bool, D> {
+    pub fn advance(&mut self) -> Result<bool, DirectoryEntryIterationError<S::Error>> {
         let current_call_index = self.call_index;
         self.call_index += 1;
 
         (self.advance)(current_call_index)
     }
 
-    pub fn next(&mut self) -> Option<DirectoryEntryIteratorResult<DirectoryEntry, D>> {
+    pub fn next(
+        &mut self,
+    ) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>> {
         let current_call_index = self.call_index;
         self.call_index += 1;
 
@@ -109,22 +125,26 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<D> ScriptedDirectoryEntryIterator<'_, D>
+impl<S> ScriptedDirectoryEntryIterator<'_, S>
 where
-    D: AsyncDevice,
+    S: ErrorType,
 {
-    pub async fn peek_async(&self) -> Option<DirectoryEntryIteratorResult<DirectoryEntry, D>> {
+    pub async fn peek_async(
+        &self,
+    ) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>> {
         (self.peek)(self.call_index)
     }
 
-    pub async fn advance_async(&mut self) -> DirectoryEntryIteratorResult<bool, D> {
+    pub async fn advance_async(&mut self) -> Result<bool, DirectoryEntryIterationError<S::Error>> {
         let current_call_index = self.call_index;
         self.call_index += 1;
 
         (self.advance)(current_call_index)
     }
 
-    pub async fn next_async(&mut self) -> Option<DirectoryEntryIteratorResult<DirectoryEntry, D>> {
+    pub async fn next_async(
+        &mut self,
+    ) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>> {
         let current_call_index = self.call_index;
         self.call_index += 1;
 

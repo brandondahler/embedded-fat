@@ -8,7 +8,6 @@ mod display {
     #[test]
     fn produces_non_empty_value() {
         let values = [
-            FileSystemError::DeviceError(IoError::default()),
             FileSystemError::InvalidFatSignature,
             FileSystemError::InvalidBiosParameterBlock(
                 BiosParameterBlockError::AllocationTableCountInvalid,

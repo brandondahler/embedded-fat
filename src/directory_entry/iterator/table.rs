@@ -1,31 +1,22 @@
 #[cfg(test)]
 mod tests;
 
-use crate::Device;
-use crate::directory_entry::{
-    DIRECTORY_ENTRY_SIZE, DirectoryEntry, DirectoryEntryIterationError,
-    DirectoryEntryIteratorResult,
-};
+use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, DirectoryEntry, DirectoryEntryIterationError};
+use core::cell::RefCell;
 use embedded_io::{ErrorType, SeekFrom};
 
 #[cfg(feature = "sync")]
-use {
-    crate::SyncDevice,
-    embedded_io::{Read, Seek},
-};
+use embedded_io::{Read, Seek};
 
 #[cfg(feature = "async")]
-use {
-    crate::AsyncDevice,
-    embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek},
-};
+use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
 #[derive(Clone, Debug)]
-pub struct DirectoryTableEntryIterator<'a, D>
+pub struct DirectoryTableEntryIterator<'a, S>
 where
-    D: Device,
+    S: ErrorType,
 {
-    device: &'a D,
+    device: &'a RefCell<S>,
 
     start_address: u64,
     entry_count: u16,
@@ -33,11 +24,11 @@ where
     current_entry_index: Option<u16>,
 }
 
-impl<'a, D> DirectoryTableEntryIterator<'a, D>
+impl<'a, S> DirectoryTableEntryIterator<'a, S>
 where
-    D: Device,
+    S: ErrorType,
 {
-    pub fn new(device: &'a D, start_address: u64, entry_count: u16) -> Self {
+    pub fn new(device: &'a RefCell<S>, start_address: u64, entry_count: u16) -> Self {
         Self {
             device,
 
@@ -71,77 +62,79 @@ where
 }
 
 #[cfg(feature = "sync")]
-impl<D, S> DirectoryTableEntryIterator<'_, D>
+impl<S> DirectoryTableEntryIterator<'_, S>
 where
-    D: SyncDevice<Stream = S>,
     S: Read + Seek,
 {
-    pub fn peek(&self) -> Option<DirectoryEntryIteratorResult<DirectoryEntry, D>> {
-        let current_address = self.current_address()?;
+    pub fn peek(&self) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>> {
+        let current_address = match self.current_address() {
+            Some(address) => address,
+            None => return Ok(None),
+        };
+
         let mut directory_entry_bytes = [0; DIRECTORY_ENTRY_SIZE];
 
-        propagate_device_iteration_errors!(
-            self.device
-                .with_stream(|stream| -> DirectoryEntryIteratorResult<(), D> {
-                    stream.seek(SeekFrom::Start(current_address))?;
-                    stream.read_exact(&mut directory_entry_bytes)?;
+        {
+            let mut stream = self.device.borrow_mut();
 
-                    Ok(())
-                })
-                .map_err(DirectoryEntryIterationError::DeviceError)
-        );
+            stream.seek(SeekFrom::Start(current_address))?;
+            stream.read_exact(&mut directory_entry_bytes)?;
+        }
 
-        Some(Ok(propagate_iteration_error!(DirectoryEntry::from_bytes(
-            &directory_entry_bytes
-        ))))
+        let directory_entry = DirectoryEntry::from_bytes(&directory_entry_bytes)?;
+
+        Ok(Some(directory_entry))
     }
 
-    pub fn next(&mut self) -> Option<DirectoryEntryIteratorResult<DirectoryEntry, D>> {
-        let result = self.peek();
+    pub fn next(
+        &mut self,
+    ) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>> {
+        let result = self.peek()?;
 
         if result.is_some() {
             self.advance();
         }
 
-        result
+        Ok(result)
     }
 }
 
 #[cfg(feature = "async")]
-impl<D, S> DirectoryTableEntryIterator<'_, D>
+impl<S> DirectoryTableEntryIterator<'_, S>
 where
-    D: AsyncDevice<Stream = S>,
     S: AsyncRead + AsyncSeek,
 {
-    pub async fn peek_async(&self) -> Option<DirectoryEntryIteratorResult<DirectoryEntry, D>> {
-        let current_address = self.current_address()?;
+    pub async fn peek_async(
+        &self,
+    ) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>> {
+        let current_address = match self.current_address() {
+            Some(address) => address,
+            None => return Ok(None),
+        };
+
         let mut directory_entry_bytes = [0; DIRECTORY_ENTRY_SIZE];
 
-        // Weird, but we need to unwrap two results
-        propagate_device_iteration_errors!(
-            self.device
-                .with_stream(async |stream| -> DirectoryEntryIteratorResult<(), D> {
-                    stream.seek(SeekFrom::Start(current_address)).await?;
-                    stream.read_exact(&mut directory_entry_bytes).await?;
+        {
+            let mut stream = self.device.borrow_mut();
 
-                    Ok(())
-                })
-                .await
-                .map_err(DirectoryEntryIterationError::DeviceError)
-        );
+            stream.seek(SeekFrom::Start(current_address)).await?;
+            stream.read_exact(&mut directory_entry_bytes).await?;
+        }
 
-        Some(Ok(propagate_iteration_error!(DirectoryEntry::from_bytes(
-            &directory_entry_bytes
-        ))))
+        let directory_entry = DirectoryEntry::from_bytes(&directory_entry_bytes)?;
+
+        Ok(Some(directory_entry))
     }
 
-    pub async fn next_async(&mut self) -> Option<DirectoryEntryIteratorResult<DirectoryEntry, D>> {
-        let result = self.peek_async().await;
+    pub async fn next_async(
+        &mut self,
+    ) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>> {
+        let result = self.peek_async().await?;
 
         if result.is_some() {
             self.advance();
         }
 
-        result
+        Ok(result)
     }
 }

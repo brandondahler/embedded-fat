@@ -11,8 +11,7 @@ mod from_boot_sector {
         let mut bytes = [0x00; 512];
         config.write(&mut bytes);
 
-        let result =
-            BiosParameterBlock::from_boot_sector(&bytes).expect_err("Err should be returned");
+        let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
         assert_eq!(result, BiosParameterBlockError::AllocationTableTooSmall);
     }
@@ -32,8 +31,7 @@ mod from_boot_sector {
                 let mut bytes = [0x00; 512];
                 config.write(&mut bytes);
 
-                let result =
-                    BiosParameterBlock::from_boot_sector(&bytes).expect("Ok should be returned");
+                let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap();
 
                 assert_eq!(result.allocation_table_kind(), AllocationTableKind::Fat32);
             }
@@ -50,8 +48,7 @@ mod from_boot_sector {
                 let mut bytes = [0x00; 512];
                 config.write(&mut bytes);
 
-                let result = BiosParameterBlock::from_boot_sector(&bytes)
-                    .expect_err("Err should be returned");
+                let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
                 assert_eq!(result, BiosParameterBlockError::BytesPerSectorInvalid);
             }
@@ -74,8 +71,7 @@ mod from_boot_sector {
                 let mut bytes = [0x00; 512];
                 config.write(&mut bytes);
 
-                let result =
-                    BiosParameterBlock::from_boot_sector(&bytes).expect("Ok should be returned");
+                let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap();
 
                 assert_eq!(result.allocation_table_kind(), AllocationTableKind::Fat32);
             }
@@ -92,8 +88,7 @@ mod from_boot_sector {
                 let mut bytes = [0x00; 512];
                 config.write(&mut bytes);
 
-                let result = BiosParameterBlock::from_boot_sector(&bytes)
-                    .expect_err("Err should be returned");
+                let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
                 assert_eq!(result, BiosParameterBlockError::SectorsPerClusterInvalid);
             }
@@ -114,8 +109,7 @@ mod from_boot_sector {
                 let mut bytes = [0x00; 512];
                 config.write(&mut bytes);
 
-                let result =
-                    BiosParameterBlock::from_boot_sector(&bytes).expect("Ok should be returned");
+                let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap();
 
                 assert_eq!(result.allocation_table_kind(), AllocationTableKind::Fat32);
             }
@@ -129,8 +123,7 @@ mod from_boot_sector {
             let mut bytes = [0x00; 512];
             config.write(&mut bytes);
 
-            let result =
-                BiosParameterBlock::from_boot_sector(&bytes).expect_err("Err should be returned");
+            let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
             assert_eq!(result, BiosParameterBlockError::ReservedSectorCountInvalid);
         }
@@ -152,8 +145,7 @@ mod from_boot_sector {
                 let mut bytes = [0x00; 512];
                 config.write(&mut bytes);
 
-                let result =
-                    BiosParameterBlock::from_boot_sector(&bytes).expect("Ok should be returned");
+                let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap();
 
                 assert_eq!(result.allocation_table_kind(), AllocationTableKind::Fat32);
             }
@@ -167,8 +159,7 @@ mod from_boot_sector {
             let mut bytes = [0x00; 512];
             config.write(&mut bytes);
 
-            let result =
-                BiosParameterBlock::from_boot_sector(&bytes).expect_err("Err should be returned");
+            let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
             assert_eq!(result, BiosParameterBlockError::AllocationTableCountInvalid);
         }
@@ -188,8 +179,7 @@ mod from_boot_sector {
                 let mut bytes = [0x00; 512];
                 config.write(&mut bytes);
 
-                let result =
-                    BiosParameterBlock::from_boot_sector(&bytes).expect("Ok should be returned");
+                let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap();
 
                 assert_eq!(result.allocation_table_kind(), AllocationTableKind::Fat32);
             }
@@ -206,8 +196,7 @@ mod from_boot_sector {
                 let mut bytes = [0x00; 512];
                 config.write(&mut bytes);
 
-                let result = BiosParameterBlock::from_boot_sector(&bytes)
-                    .expect_err("Err should be returned");
+                let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
                 assert_eq!(result, BiosParameterBlockError::MediaTypeInvalid);
             }
@@ -226,8 +215,7 @@ mod from_boot_sector {
             let mut bytes = [0x00; 512];
             config.write(&mut bytes);
 
-            let result =
-                BiosParameterBlock::from_boot_sector(&bytes).expect_err("Err should be returned");
+            let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
             assert_eq!(result, BiosParameterBlockError::TotalSectorCountNotSet);
         }
@@ -245,8 +233,7 @@ mod from_boot_sector {
             let mut bytes = [0x00; 512];
             config.write(&mut bytes);
 
-            let result =
-                BiosParameterBlock::from_boot_sector(&bytes).expect_err("Err should be returned");
+            let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
             assert_eq!(
                 result,
@@ -266,8 +253,7 @@ mod from_boot_sector {
             let mut bytes = [0x00; 512];
             config.write(&mut bytes);
 
-            let result =
-                BiosParameterBlock::from_boot_sector(&bytes).expect_err("Err should be returned");
+            let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
             assert_eq!(
                 result,
@@ -285,8 +271,7 @@ mod from_boot_sector {
             let mut bytes = [0x00; 512];
             config.write(&mut bytes);
 
-            let result =
-                BiosParameterBlock::from_boot_sector(&bytes).expect_err("Err should be returned");
+            let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
             assert_eq!(
                 result,
@@ -303,8 +288,7 @@ mod from_boot_sector {
             let mut bytes = [0x00; 512];
             config.write(&mut bytes);
 
-            let result =
-                BiosParameterBlock::from_boot_sector(&bytes).expect_err("Err should be returned");
+            let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
             assert_eq!(
                 result,
@@ -320,8 +304,7 @@ mod from_boot_sector {
             let mut bytes = [0x00; 512];
             config.write(&mut bytes);
 
-            let result =
-                BiosParameterBlock::from_boot_sector(&bytes).expect_err("Err should be returned");
+            let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
             assert_eq!(
                 result,
@@ -337,8 +320,7 @@ mod from_boot_sector {
             let mut bytes = [0x00; 512];
             config.write(&mut bytes);
 
-            let result =
-                BiosParameterBlock::from_boot_sector(&bytes).expect_err("Err should be returned");
+            let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
             assert_eq!(
                 result,
@@ -354,8 +336,7 @@ mod from_boot_sector {
             let mut bytes = [0x00; 512];
             config.write(&mut bytes);
 
-            let result =
-                BiosParameterBlock::from_boot_sector(&bytes).expect_err("Err should be returned");
+            let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
             assert_eq!(
                 result,
@@ -371,8 +352,7 @@ mod from_boot_sector {
             let mut bytes = [0x00; 512];
             config.write(&mut bytes);
 
-            let result =
-                BiosParameterBlock::from_boot_sector(&bytes).expect_err("Err should be returned");
+            let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
             assert_eq!(result, BiosParameterBlockError::FsInfoSectorNumberInvalid);
         }
@@ -391,8 +371,7 @@ mod from_boot_sector {
             let mut bytes = [0x00; 512];
             config.write(&mut bytes);
 
-            let result =
-                BiosParameterBlock::from_boot_sector(&bytes).expect_err("Err should be returned");
+            let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
             assert_eq!(
                 result,
@@ -408,8 +387,7 @@ mod from_boot_sector {
             let mut bytes = [0x00; 512];
             config.write(&mut bytes);
 
-            let result =
-                BiosParameterBlock::from_boot_sector(&bytes).expect_err("Err should be returned");
+            let result = BiosParameterBlock::from_boot_sector(&bytes).unwrap_err();
 
             assert_eq!(
                 result,

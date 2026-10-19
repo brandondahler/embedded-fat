@@ -49,10 +49,7 @@ mod propagate_iteration_error {
             None
         }
 
-        assert!(
-            test().expect("Some should be returned").is_err(),
-            "Err should be returned"
-        );
+        assert!(test().unwrap().is_err(), "Err should be returned");
     }
 
     #[test]
@@ -61,10 +58,7 @@ mod propagate_iteration_error {
             Some(Ok(propagate_iteration_error!(Err(IntoCoreError))))
         }
 
-        assert!(
-            test().expect("Some should be returned").is_err(),
-            "Err should be returned"
-        );
+        assert!(test().unwrap().is_err(), "Err should be returned");
     }
 
     #[test]
@@ -75,10 +69,7 @@ mod propagate_iteration_error {
             Some(Ok(propagate_iteration_error!(input)))
         }
 
-        assert!(
-            test().expect("Some should be returned").is_ok(),
-            "Ok should be returned"
-        );
+        assert!(test().unwrap().is_ok(), "Ok should be returned");
     }
 }
 
@@ -95,10 +86,7 @@ mod propagate_device_iteration_errors {
             None
         }
 
-        assert!(
-            test().expect("Some should be returned").is_err(),
-            "Err should be returned"
-        );
+        assert!(test().unwrap().is_err(), "Err should be returned");
     }
 
     #[test]
@@ -111,10 +99,7 @@ mod propagate_device_iteration_errors {
             None
         }
 
-        assert!(
-            test().expect("Some should be returned").is_err(),
-            "Err should be returned"
-        );
+        assert!(test().unwrap().is_err(), "Err should be returned");
     }
 
     #[test]
@@ -127,10 +112,7 @@ mod propagate_device_iteration_errors {
             None
         }
 
-        assert!(
-            test().expect("Some should be returned").is_err(),
-            "Err should be returned"
-        );
+        assert!(test().unwrap().is_err(), "Err should be returned");
     }
 
     #[test]
@@ -143,10 +125,7 @@ mod propagate_device_iteration_errors {
             None
         }
 
-        assert!(
-            test().expect("Some should be returned").is_err(),
-            "Err should be returned"
-        );
+        assert!(test().unwrap().is_err(), "Err should be returned");
     }
 
     #[test]
@@ -157,10 +136,7 @@ mod propagate_device_iteration_errors {
             Some(Ok(propagate_device_iteration_errors!(input)))
         }
 
-        assert!(
-            test().expect("Some should be returned").is_ok(),
-            "Ok should be returned"
-        );
+        assert!(test().unwrap().is_ok(), "Ok should be returned");
     }
 }
 

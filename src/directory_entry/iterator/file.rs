@@ -1,33 +1,24 @@
 #[cfg(test)]
 mod tests;
 
-use crate::Device;
 use crate::allocation_table::{AllocationTable, AllocationTableEntry};
-use crate::directory_entry::{
-    DIRECTORY_ENTRY_SIZE, DirectoryEntry, DirectoryEntryIterationError,
-    DirectoryEntryIteratorResult,
-};
+use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, DirectoryEntry, DirectoryEntryIterationError};
+use core::cell::RefCell;
 use core::ops::DerefMut;
 use embedded_io::{ErrorType, SeekFrom};
 
 #[cfg(feature = "sync")]
-use {
-    crate::SyncDevice,
-    embedded_io::{Read, Seek},
-};
+use embedded_io::{Read, Seek};
 
 #[cfg(feature = "async")]
-use {
-    crate::AsyncDevice,
-    embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek},
-};
+use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
 #[derive(Clone, Debug)]
-pub struct DirectoryFileEntryIterator<'a, D>
+pub struct DirectoryFileEntryIterator<'a, S>
 where
-    D: Device,
+    S: ErrorType,
 {
-    device: &'a D,
+    device: &'a RefCell<S>,
     allocation_table: &'a AllocationTable,
 
     data_region_base_address: u64,
@@ -37,12 +28,12 @@ where
     current_cluster_offset: u32,
 }
 
-impl<'a, D> DirectoryFileEntryIterator<'a, D>
+impl<'a, S> DirectoryFileEntryIterator<'a, S>
 where
-    D: Device,
+    S: ErrorType,
 {
     pub fn new(
-        device: &'a D,
+        device: &'a RefCell<S>,
         allocation_table: &'a AllocationTable,
         data_region_base_address: u64,
         bytes_per_cluster: u32,
@@ -73,7 +64,7 @@ where
     fn try_advance_cluster(
         &mut self,
         allocation_table_entry: AllocationTableEntry,
-    ) -> DirectoryEntryIteratorResult<bool, D> {
+    ) -> Result<bool, DirectoryEntryIterationError<S::Error>> {
         match allocation_table_entry {
             AllocationTableEntry::NextClusterNumber(next_cluster_number) => {
                 self.current_cluster_number = next_cluster_number;
@@ -92,124 +83,115 @@ where
 }
 
 #[cfg(feature = "sync")]
-impl<'a, D, S> DirectoryFileEntryIterator<'a, D>
+impl<'a, S> DirectoryFileEntryIterator<'a, S>
 where
-    D: SyncDevice<Stream = S>,
     S: Read + Seek,
 {
-    pub fn peek(&self) -> Option<DirectoryEntryIteratorResult<DirectoryEntry, D>> {
+    pub fn peek(&self) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>> {
         if self.current_cluster_offset >= self.bytes_per_cluster {
-            return None;
+            return Ok(None);
         }
 
         let current_address = self.current_address();
 
         let mut directory_entry_bytes = [0; DIRECTORY_ENTRY_SIZE];
 
-        propagate_device_iteration_errors!(
-            self.device
-                .with_stream(|stream| -> DirectoryEntryIteratorResult<(), D> {
-                    stream.seek(SeekFrom::Start(current_address))?;
-                    stream.read_exact(&mut directory_entry_bytes)?;
+        {
+            let mut stream = self.device.borrow_mut();
+            stream.seek(SeekFrom::Start(current_address))?;
+            stream.read_exact(&mut directory_entry_bytes)?;
+        }
 
-                    Ok(())
-                })
-                .map_err(DirectoryEntryIterationError::DeviceError)
-        );
+        let directory_entry = DirectoryEntry::from_bytes(&directory_entry_bytes)?;
 
-        Some(Ok(propagate_iteration_error!(DirectoryEntry::from_bytes(
-            &directory_entry_bytes
-        ))))
+        Ok(Some(directory_entry))
     }
 
-    pub fn advance(&mut self) -> DirectoryEntryIteratorResult<bool, D> {
+    pub fn advance(&mut self) -> Result<bool, DirectoryEntryIterationError<S::Error>> {
         self.advance_offset();
 
         if self.current_cluster_offset < self.bytes_per_cluster {
             return Ok(true);
         }
 
-        self.device
-            .with_stream(|stream| -> DirectoryEntryIteratorResult<bool, D> {
-                let allocation_table_entry = self
-                    .allocation_table
-                    .read_entry(stream, self.current_cluster_number)?;
+        {
+            let mut stream = self.device.borrow_mut();
 
-                self.try_advance_cluster(allocation_table_entry)
-            })
-            .map_err(DirectoryEntryIterationError::DeviceError)?
+            let allocation_table_entry = self
+                .allocation_table
+                .read_entry(&mut *stream, self.current_cluster_number)?;
+
+            self.try_advance_cluster(allocation_table_entry)
+        }
     }
 
-    pub fn next(&mut self) -> Option<DirectoryEntryIteratorResult<DirectoryEntry, D>> {
-        let result = self.peek();
+    pub fn next(
+        &mut self,
+    ) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>> {
+        let result = self.peek()?;
 
         if result.is_some() {
-            propagate_iteration_error!(self.advance());
+            self.advance()?;
         }
 
-        result
+        Ok(result)
     }
 }
 
 #[cfg(feature = "async")]
-impl<'a, D, S> DirectoryFileEntryIterator<'a, D>
+impl<'a, S> DirectoryFileEntryIterator<'a, S>
 where
-    D: AsyncDevice<Stream = S>,
     S: AsyncRead + AsyncSeek,
 {
-    pub async fn peek_async(&self) -> Option<DirectoryEntryIteratorResult<DirectoryEntry, D>> {
+    pub async fn peek_async(
+        &self,
+    ) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>> {
         if self.current_cluster_offset >= self.bytes_per_cluster {
-            return None;
+            return Ok(None);
         }
 
         let current_address = self.current_address();
         let mut directory_entry_bytes = [0; DIRECTORY_ENTRY_SIZE];
 
-        propagate_device_iteration_errors!(
-            self.device
-                .with_stream(async |stream| -> DirectoryEntryIteratorResult<(), D> {
-                    stream.seek(SeekFrom::Start(current_address)).await?;
+        {
+            let mut stream = self.device.borrow_mut();
+            stream.seek(SeekFrom::Start(current_address)).await?;
+            stream.read_exact(&mut directory_entry_bytes).await?;
+        }
 
-                    stream.read_exact(&mut directory_entry_bytes).await?;
+        let directory_entry = DirectoryEntry::from_bytes(&directory_entry_bytes)?;
 
-                    Ok(())
-                })
-                .await
-                .map_err(DirectoryEntryIterationError::DeviceError)
-        );
-
-        Some(Ok(propagate_iteration_error!(DirectoryEntry::from_bytes(
-            &directory_entry_bytes
-        ))))
+        Ok(Some(directory_entry))
     }
 
-    pub async fn advance_async(&mut self) -> DirectoryEntryIteratorResult<bool, D> {
+    pub async fn advance_async(&mut self) -> Result<bool, DirectoryEntryIterationError<S::Error>> {
         self.advance_offset();
 
         if self.current_cluster_offset < self.bytes_per_cluster {
             return Ok(true);
         }
 
-        self.device
-            .with_stream(async |stream| -> DirectoryEntryIteratorResult<bool, D> {
-                let allocation_table_entry = self
-                    .allocation_table
-                    .read_entry_async(stream, self.current_cluster_number)
-                    .await?;
+        {
+            let mut stream = self.device.borrow_mut();
 
-                self.try_advance_cluster(allocation_table_entry)
-            })
-            .await
-            .map_err(DirectoryEntryIterationError::DeviceError)?
+            let allocation_table_entry = self
+                .allocation_table
+                .read_entry_async(&mut *stream, self.current_cluster_number)
+                .await?;
+
+            self.try_advance_cluster(allocation_table_entry)
+        }
     }
 
-    pub async fn next_async(&mut self) -> Option<DirectoryEntryIteratorResult<DirectoryEntry, D>> {
-        let result = self.peek_async().await;
+    pub async fn next_async(
+        &mut self,
+    ) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>> {
+        let result = self.peek_async().await?;
 
         if result.is_some() {
-            propagate_iteration_error!(self.advance_async().await);
+            self.advance_async().await?;
         }
 
-        result
+        Ok(result)
     }
 }

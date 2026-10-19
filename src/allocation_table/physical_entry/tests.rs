@@ -16,8 +16,7 @@ mod new {
         ];
 
         for (table_kind, value) in values {
-            let result = PhysicalAllocationTableEntry::new(table_kind, value)
-                .expect("Ok should be returned");
+            let result = PhysicalAllocationTableEntry::new(table_kind, value).unwrap();
 
             assert_eq!(result.table_kind, table_kind);
             assert_eq!(result.value, value);

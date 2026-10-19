@@ -2,15 +2,16 @@
 mod tests;
 
 use crate::allocation_table::AllocationTable;
-use crate::device::Device;
 use crate::directory_entry::DirectoryFileEntryIterator;
+use core::cell::RefCell;
+use embedded_io::ErrorType;
 
 #[derive(Clone, Debug)]
-pub struct DirectoryFile<'a, D>
+pub struct DirectoryFile<'a, S>
 where
-    D: Device,
+    S: ErrorType,
 {
-    device: &'a D,
+    device: &'a RefCell<S>,
     allocation_table: &'a AllocationTable,
 
     data_region_base_address: u64,
@@ -19,12 +20,12 @@ where
     start_cluster_number: u32,
 }
 
-impl<'a, D> DirectoryFile<'a, D>
+impl<'a, S> DirectoryFile<'a, S>
 where
-    D: Device,
+    S: ErrorType,
 {
     pub fn new(
-        device: &'a D,
+        device: &'a RefCell<S>,
         allocation_table: &'a AllocationTable,
         data_region_base_address: u64,
         bytes_per_cluster: u32,
@@ -41,7 +42,7 @@ where
         }
     }
 
-    pub fn entries(&self) -> DirectoryFileEntryIterator<'_, D> {
+    pub fn entries(&self) -> DirectoryFileEntryIterator<'_, S> {
         DirectoryFileEntryIterator::new(
             self.device,
             self.allocation_table,

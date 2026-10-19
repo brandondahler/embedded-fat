@@ -17,7 +17,6 @@ mod display {
                     offset: 0,
                 }),
             )),
-            DirectoryEntryIterationError::DeviceError(IoError::default()),
             DirectoryEntryIterationError::StreamEndReached,
             DirectoryEntryIterationError::StreamError(IoError::default()),
         ];
