@@ -34,6 +34,7 @@ mod file;
 mod file_name;
 mod file_system;
 
+mod device;
 #[cfg(test)]
 mod mock;
 

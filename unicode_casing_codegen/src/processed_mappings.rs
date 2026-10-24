@@ -26,10 +26,7 @@ impl ProcessedMappings {
 
             // Skip the ASCII range after validating that it matches the expected
             if matches!(source_codepoint, 0x00..=0x7F) {
-                assert!(
-                    matches!(source_codepoint, 0x41..=0x5A),
-                    "Mappings should only exist for uppercase characters in the ASCII range"
-                );
+                assert_matches!(source_codepoint, 0x41..=0x5A);
                 assert_eq!(
                     difference, 32,
                     "Mappings should target the matching lowercase character"

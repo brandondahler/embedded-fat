@@ -5,7 +5,7 @@ use crate::mock::{DataStream, ErroringStream, ErroringStreamScenarios, IoError, 
 use crate::utils::write_le_u32;
 use alloc::vec;
 use alloc::vec::Vec;
-use std::assert_matches;
+use core::assert_matches;
 
 mod peek {
     use super::*;
@@ -17,12 +17,9 @@ mod peek {
 
         let result = iterator.peek().unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
     }
 
@@ -35,12 +32,9 @@ mod peek {
 
         let result = iterator.peek().unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
     }
 
@@ -51,22 +45,16 @@ mod peek {
 
         let result = iterator.peek().unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
-            ),
-            "CurrentOnly free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
         );
 
         let result = iterator.peek().unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
-            ),
-            "CurrentOnly free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
         );
     }
 
@@ -84,7 +72,7 @@ mod peek {
 
     #[test]
     fn seek_err_propagated() {
-        let device = RefCell::new(ErroringStream::new(
+        let device = Device::<_, 0>::new(ErroringStream::new(
             VoidStream::new(),
             IoError::default(),
             ErroringStreamScenarios::SEEK,
@@ -101,15 +89,12 @@ mod peek {
 
         let error = iterator.peek().unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
-            "StreamError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamError(IoError(_)));
     }
 
     #[test]
     fn read_err_propagated() {
-        let device = RefCell::new(ErroringStream::new(
+        let device = Device::<_, 0>::new(ErroringStream::new(
             VoidStream::new(),
             IoError::default(),
             ErroringStreamScenarios::READ,
@@ -126,15 +111,12 @@ mod peek {
 
         let error = iterator.peek().unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
-            "StreamError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamError(IoError(_)));
     }
 
     #[test]
     fn stream_end_reached_error_propagated() {
-        let device = RefCell::new(DataStream::from_bytes([]));
+        let device = Device::<_, 0>::new(DataStream::from_bytes([]));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let iterator = DirectoryFileEntryIterator::new(
@@ -147,16 +129,14 @@ mod peek {
 
         let error = iterator.peek().unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamEndReached),
-            "StreamEndReached should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamEndReached);
     }
 
     #[test]
-    fn device_err_propagated() {
+    fn device_busy_error_propagated() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
-        let device = RefCell::new(ErroringStream::default());
+        let device = Device::<_, 0>::new(VoidStream::new());
+        let _device_stream = device.acquire_stream().unwrap();
 
         let iterator = DirectoryFileEntryIterator::new(
             &device,
@@ -168,10 +148,7 @@ mod peek {
 
         let error = iterator.peek().unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
-            "StreamError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::DeviceBusy);
     }
 
     #[test]
@@ -179,7 +156,7 @@ mod peek {
         let mut data = [0; DIRECTORY_ENTRY_SIZE];
         data[0] = 0x20;
 
-        let device = RefCell::new(DataStream::from_bytes(data));
+        let device = Device::<_, 0>::new(DataStream::from_bytes(data));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let iterator = DirectoryFileEntryIterator::new(
@@ -192,10 +169,7 @@ mod peek {
 
         let error = iterator.peek().unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::EntryInvalid(_)),
-            "EntryInvalid should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::EntryInvalid(_));
     }
 }
 
@@ -236,7 +210,7 @@ mod advance {
         let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
         write_le_u32(&mut data, 8, 0);
 
-        let device = RefCell::new(DataStream::from_bytes(data));
+        let device = Device::<_, 0>::new(DataStream::from_bytes(data));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
@@ -249,12 +223,9 @@ mod advance {
 
         let error = iterator.advance().unwrap_err();
 
-        assert!(
-            matches!(
-                error,
-                DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
-            ),
-            "AllocationTableEntryTypeUnexpected should be returned"
+        assert_matches!(
+            error,
+            DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
         );
     }
 
@@ -263,7 +234,7 @@ mod advance {
         let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
         write_le_u32(&mut data, 8, 1);
 
-        let device = RefCell::new(DataStream::from_bytes(data));
+        let device = Device::<_, 0>::new(DataStream::from_bytes(data));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
@@ -276,12 +247,9 @@ mod advance {
 
         let error = iterator.advance().unwrap_err();
 
-        assert!(
-            matches!(
-                error,
-                DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
-            ),
-            "AllocationTableEntryTypeUnexpected should be returned"
+        assert_matches!(
+            error,
+            DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
         );
     }
 
@@ -290,7 +258,7 @@ mod advance {
         let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
         write_le_u32(&mut data, 8, AllocationTableKind::Fat32.bad_sector_value());
 
-        let device = RefCell::new(DataStream::from_bytes(data));
+        let device = Device::<_, 0>::new(DataStream::from_bytes(data));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
@@ -303,18 +271,15 @@ mod advance {
 
         let error = iterator.advance().unwrap_err();
 
-        assert!(
-            matches!(
-                error,
-                DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
-            ),
-            "AllocationTableEntryTypeUnexpected should be returned"
+        assert_matches!(
+            error,
+            DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
         );
     }
 
     #[test]
     fn stream_seek_error_propagated() {
-        let device = RefCell::new(ErroringStream::new(
+        let device = Device::<_, 0>::new(ErroringStream::new(
             VoidStream::new(),
             IoError::default(),
             ErroringStreamScenarios::SEEK,
@@ -331,15 +296,12 @@ mod advance {
 
         let error = iterator.advance().unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
-            "StreamError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamError(IoError(_)));
     }
 
     #[test]
     fn stream_read_error_propagated() {
-        let device = RefCell::new(ErroringStream::new(
+        let device = Device::<_, 0>::new(ErroringStream::new(
             VoidStream::new(),
             IoError::default(),
             ErroringStreamScenarios::READ,
@@ -356,15 +318,12 @@ mod advance {
 
         let error = iterator.advance().unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
-            "StreamError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamError(IoError(_)));
     }
 
     #[test]
     fn stream_end_reached_error_propagated() {
-        let device = RefCell::new(DataStream::from_bytes([]));
+        let device = Device::<_, 0>::new(DataStream::from_bytes([]));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
@@ -377,17 +336,16 @@ mod advance {
 
         let error = iterator.advance().unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamEndReached),
-            "StreamEndReached should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamEndReached);
     }
 
     #[test]
-    fn device_error_propagated() {
+    fn device_busy_error_propagated() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
-        let device = RefCell::new(ErroringStream::default());
+        let device = Device::<_, 0>::new(VoidStream::new());
+        let _device_stream = device.acquire_stream().unwrap();
+
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
             &allocation_table,
@@ -398,10 +356,7 @@ mod advance {
 
         let error = iterator.advance().unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
-            "StreamError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::DeviceBusy);
     }
 }
 
@@ -415,12 +370,9 @@ mod next {
 
         let result = iterator.next().unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
     }
 
@@ -431,22 +383,16 @@ mod next {
 
         let result = iterator.next().unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
-            ),
-            "CurrentOnly free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
         );
 
         let result = iterator.next().unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
     }
 
@@ -467,7 +413,7 @@ mod next {
         let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
         write_le_u32(&mut data, 8, 0);
 
-        let device = RefCell::new(DataStream::from_bytes(data));
+        let device = Device::<_, 0>::new(DataStream::from_bytes(data));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
@@ -480,12 +426,9 @@ mod next {
 
         let error = iterator.next().unwrap_err();
 
-        assert!(
-            matches!(
-                error,
-                DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
-            ),
-            "AllocationTableEntryTypeUnexpected should be returned"
+        assert_matches!(
+            error,
+            DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
         );
     }
 
@@ -494,7 +437,7 @@ mod next {
         let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
         write_le_u32(&mut data, 8, 1);
 
-        let device = RefCell::new(DataStream::from_bytes(data));
+        let device = Device::<_, 0>::new(DataStream::from_bytes(data));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
@@ -507,12 +450,9 @@ mod next {
 
         let error = iterator.next().unwrap_err();
 
-        assert!(
-            matches!(
-                error,
-                DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
-            ),
-            "AllocationTableEntryTypeUnexpected should be returned"
+        assert_matches!(
+            error,
+            DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
         );
     }
 
@@ -521,7 +461,7 @@ mod next {
         let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
         write_le_u32(&mut data, 8, AllocationTableKind::Fat32.bad_sector_value());
 
-        let device = RefCell::new(DataStream::from_bytes(data));
+        let device = Device::<_, 0>::new(DataStream::from_bytes(data));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
@@ -542,7 +482,7 @@ mod next {
 
     #[test]
     fn stream_seek_error_propagated() {
-        let device = RefCell::new(ErroringStream::new(
+        let device = Device::<_, 0>::new(ErroringStream::new(
             VoidStream::new(),
             IoError::default(),
             ErroringStreamScenarios::SEEK,
@@ -559,15 +499,12 @@ mod next {
 
         let error = iterator.next().unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
-            "StreamError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamError(IoError(_)));
     }
 
     #[test]
     fn stream_read_error_propagated() {
-        let device = RefCell::new(ErroringStream::new(
+        let device = Device::<_, 0>::new(ErroringStream::new(
             VoidStream::new(),
             IoError::default(),
             ErroringStreamScenarios::READ,
@@ -584,15 +521,12 @@ mod next {
 
         let error = iterator.next().unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
-            "StreamError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamError(IoError(_)));
     }
 
     #[test]
     fn stream_end_reached_error_propagated() {
-        let device = RefCell::new(DataStream::from_bytes([]));
+        let device = Device::<_, 0>::new(DataStream::from_bytes([]));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
@@ -605,17 +539,16 @@ mod next {
 
         let error = iterator.next().unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamEndReached),
-            "StreamEndReached should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamEndReached);
     }
 
     #[test]
-    fn device_error_propagated() {
+    fn device_busy_error_propagated() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
-        let device = RefCell::new(ErroringStream::default());
+        let device = Device::<_, 0>::new(VoidStream::new());
+        let _device_stream = device.acquire_stream().unwrap();
+
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
             &allocation_table,
@@ -626,10 +559,7 @@ mod next {
 
         let error = iterator.next().unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(_)),
-            "DeviceError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::DeviceBusy);
     }
 }
 
@@ -643,12 +573,9 @@ mod peek_async {
 
         let result = iterator.peek().unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
     }
 
@@ -661,12 +588,9 @@ mod peek_async {
 
         let result = iterator.peek().unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
     }
 
@@ -677,22 +601,16 @@ mod peek_async {
 
         let result = iterator.peek_async().await.unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
-            ),
-            "CurrentOnly free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
         );
 
         let result = iterator.peek_async().await.unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
-            ),
-            "CurrentOnly free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
         );
     }
 
@@ -710,7 +628,7 @@ mod peek_async {
 
     #[tokio::test]
     async fn seek_err_propagated() {
-        let device = RefCell::new(ErroringStream::new(
+        let device = Device::<_, 0>::new(ErroringStream::new(
             VoidStream::new(),
             IoError::default(),
             ErroringStreamScenarios::SEEK,
@@ -727,15 +645,12 @@ mod peek_async {
 
         let error = iterator.peek_async().await.unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
-            "StreamError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamError(IoError(_)));
     }
 
     #[tokio::test]
     async fn read_err_propagated() {
-        let device = RefCell::new(ErroringStream::new(
+        let device = Device::<_, 0>::new(ErroringStream::new(
             VoidStream::new(),
             IoError::default(),
             ErroringStreamScenarios::READ,
@@ -752,15 +667,12 @@ mod peek_async {
 
         let error = iterator.peek_async().await.unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
-            "StreamError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamError(IoError(_)));
     }
 
     #[tokio::test]
     async fn stream_end_reached_error_propagated() {
-        let device = RefCell::new(DataStream::from_bytes([]));
+        let device = Device::<_, 0>::new(DataStream::from_bytes([]));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let iterator = DirectoryFileEntryIterator::new(
@@ -773,17 +685,16 @@ mod peek_async {
 
         let error = iterator.peek_async().await.unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamEndReached),
-            "StreamEndReached should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamEndReached);
     }
 
     #[tokio::test]
-    async fn device_err_propagated() {
+    async fn device_busy_error_propagated() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
-        let device = RefCell::new(ErroringStream::default());
+        let device = Device::<_, 0>::new(VoidStream::new());
+        let _device_stream = device.acquire_stream().unwrap();
+
         let iterator = DirectoryFileEntryIterator::new(
             &device,
             &allocation_table,
@@ -794,10 +705,7 @@ mod peek_async {
 
         let error = iterator.peek_async().await.unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
-            "DeviceError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::DeviceBusy);
     }
 
     #[tokio::test]
@@ -805,7 +713,7 @@ mod peek_async {
         let mut data = [0; DIRECTORY_ENTRY_SIZE];
         data[0] = 0x20;
 
-        let device = RefCell::new(DataStream::from_bytes(data));
+        let device = Device::<_, 0>::new(DataStream::from_bytes(data));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let iterator = DirectoryFileEntryIterator::new(
@@ -818,10 +726,7 @@ mod peek_async {
 
         let error = iterator.peek_async().await.unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::EntryInvalid(_)),
-            "EntryInvalid should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::EntryInvalid(_));
     }
 }
 
@@ -862,7 +767,7 @@ mod advance_async {
         let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
         write_le_u32(&mut data, 8, 0);
 
-        let device = RefCell::new(DataStream::from_bytes(data));
+        let device = Device::<_, 0>::new(DataStream::from_bytes(data));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
@@ -875,12 +780,9 @@ mod advance_async {
 
         let error = iterator.advance_async().await.unwrap_err();
 
-        assert!(
-            matches!(
-                error,
-                DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
-            ),
-            "AllocationTableEntryTypeUnexpected should be returned"
+        assert_matches!(
+            error,
+            DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
         );
     }
 
@@ -889,7 +791,7 @@ mod advance_async {
         let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
         write_le_u32(&mut data, 8, 1);
 
-        let device = RefCell::new(DataStream::from_bytes(data));
+        let device = Device::<_, 0>::new(DataStream::from_bytes(data));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
@@ -902,12 +804,9 @@ mod advance_async {
 
         let error = iterator.advance_async().await.unwrap_err();
 
-        assert!(
-            matches!(
-                error,
-                DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
-            ),
-            "AllocationTableEntryTypeUnexpected should be returned"
+        assert_matches!(
+            error,
+            DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
         );
     }
 
@@ -916,7 +815,7 @@ mod advance_async {
         let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
         write_le_u32(&mut data, 8, AllocationTableKind::Fat32.bad_sector_value());
 
-        let device = RefCell::new(DataStream::from_bytes(data));
+        let device = Device::<_, 0>::new(DataStream::from_bytes(data));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
@@ -929,18 +828,15 @@ mod advance_async {
 
         let error = iterator.advance_async().await.unwrap_err();
 
-        assert!(
-            matches!(
-                error,
-                DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
-            ),
-            "AllocationTableEntryTypeUnexpected should be returned"
+        assert_matches!(
+            error,
+            DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
         );
     }
 
     #[tokio::test]
     async fn stream_seek_error_propagated() {
-        let device = RefCell::new(ErroringStream::new(
+        let device = Device::<_, 0>::new(ErroringStream::new(
             VoidStream::new(),
             IoError::default(),
             ErroringStreamScenarios::SEEK,
@@ -957,15 +853,12 @@ mod advance_async {
 
         let error = iterator.advance_async().await.unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
-            "StreamError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamError(IoError(_)));
     }
 
     #[tokio::test]
     async fn stream_read_error_propagated() {
-        let device = RefCell::new(ErroringStream::new(
+        let device = Device::<_, 0>::new(ErroringStream::new(
             VoidStream::new(),
             IoError::default(),
             ErroringStreamScenarios::READ,
@@ -982,15 +875,12 @@ mod advance_async {
 
         let error = iterator.advance_async().await.unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
-            "StreamError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamError(IoError(_)));
     }
 
     #[tokio::test]
     async fn stream_end_reached_error_propagated() {
-        let device = RefCell::new(DataStream::from_bytes([]));
+        let device = Device::<_, 0>::new(DataStream::from_bytes([]));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
@@ -1003,17 +893,16 @@ mod advance_async {
 
         let error = iterator.advance_async().await.unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamEndReached),
-            "StreamEndReached should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamEndReached);
     }
 
     #[tokio::test]
-    async fn device_error_propagated() {
+    async fn device_busy_error_propagated() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
-        let device = RefCell::new(ErroringStream::default());
+        let device = Device::<_, 0>::new(VoidStream::new());
+        let _device_stream = device.acquire_stream().unwrap();
+
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
             &allocation_table,
@@ -1024,10 +913,7 @@ mod advance_async {
 
         let error = iterator.advance_async().await.unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(_)),
-            "DeviceError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::DeviceBusy);
     }
 }
 
@@ -1041,12 +927,9 @@ mod next_async {
 
         let result = iterator.next_async().await.unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
     }
 
@@ -1057,22 +940,16 @@ mod next_async {
 
         let result = iterator.next_async().await.unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
-            ),
-            "CurrentOnly free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)
         );
 
         let result = iterator.next_async().await.unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
     }
 
@@ -1093,7 +970,7 @@ mod next_async {
         let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
         write_le_u32(&mut data, 8, 0);
 
-        let device = RefCell::new(DataStream::from_bytes(data));
+        let device = Device::<_, 0>::new(DataStream::from_bytes(data));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
@@ -1106,12 +983,9 @@ mod next_async {
 
         let error = iterator.next_async().await.unwrap_err();
 
-        assert!(
-            matches!(
-                error,
-                DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
-            ),
-            "AllocationTableEntryTypeUnexpected should be returned"
+        assert_matches!(
+            error,
+            DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
         );
     }
 
@@ -1120,7 +994,7 @@ mod next_async {
         let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
         write_le_u32(&mut data, 8, 1);
 
-        let device = RefCell::new(DataStream::from_bytes(data));
+        let device = Device::<_, 0>::new(DataStream::from_bytes(data));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
@@ -1133,12 +1007,9 @@ mod next_async {
 
         let error = iterator.next_async().await.unwrap_err();
 
-        assert!(
-            matches!(
-                error,
-                DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
-            ),
-            "AllocationTableEntryTypeUnexpected should be returned"
+        assert_matches!(
+            error,
+            DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
         );
     }
 
@@ -1147,7 +1018,7 @@ mod next_async {
         let mut data = [0; 12 + DIRECTORY_ENTRY_SIZE];
         write_le_u32(&mut data, 8, AllocationTableKind::Fat32.bad_sector_value());
 
-        let device = RefCell::new(DataStream::from_bytes(data));
+        let device = Device::<_, 0>::new(DataStream::from_bytes(data));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
@@ -1160,18 +1031,15 @@ mod next_async {
 
         let error = iterator.next_async().await.unwrap_err();
 
-        assert!(
-            matches!(
-                error,
-                DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
-            ),
-            "AllocationTableEntryTypeUnexpected should be returned"
+        assert_matches!(
+            error,
+            DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected
         );
     }
 
     #[tokio::test]
     async fn stream_seek_error_propagated() {
-        let device = RefCell::new(ErroringStream::new(
+        let device = Device::<_, 0>::new(ErroringStream::new(
             VoidStream::new(),
             IoError::default(),
             ErroringStreamScenarios::SEEK,
@@ -1188,15 +1056,12 @@ mod next_async {
 
         let error = iterator.next_async().await.unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
-            "StreamError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamError(IoError(_)));
     }
 
     #[tokio::test]
     async fn stream_read_error_propagated() {
-        let device = RefCell::new(ErroringStream::new(
+        let device = Device::<_, 0>::new(ErroringStream::new(
             VoidStream::new(),
             IoError::default(),
             ErroringStreamScenarios::READ,
@@ -1213,15 +1078,12 @@ mod next_async {
 
         let error = iterator.next_async().await.unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(IoError(_))),
-            "StreamError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamError(IoError(_)));
     }
 
     #[tokio::test]
     async fn stream_end_reached_error_propagated() {
-        let device = RefCell::new(DataStream::from_bytes([]));
+        let device = Device::<_, 0>::new(DataStream::from_bytes([]));
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
         let mut iterator = DirectoryFileEntryIterator::new(
@@ -1234,17 +1096,16 @@ mod next_async {
 
         let error = iterator.next_async().await.unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamEndReached),
-            "StreamEndReached should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::StreamEndReached);
     }
 
     #[tokio::test]
-    async fn device_error_propagated() {
+    async fn device_busy_error_propagated() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
 
-        let device = RefCell::new(ErroringStream::default());
+        let device = Device::<_, 0>::new(VoidStream::new());
+        let _device_stream = device.acquire_stream().unwrap();
+
         let mut iterator = DirectoryFileEntryIterator::new(
             &device,
             &allocation_table,
@@ -1255,17 +1116,14 @@ mod next_async {
 
         let error = iterator.next_async().await.unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryIterationError::StreamError(_)),
-            "DeviceError should be returned"
-        );
+        assert_matches!(error, DirectoryEntryIterationError::DeviceBusy);
     }
 }
 
 type TestInstanceStream = DataStream<Vec<u8>>;
 
 struct TestInstance {
-    device: RefCell<TestInstanceStream>,
+    device: Device<TestInstanceStream, 0>,
     allocation_table: AllocationTable,
 
     data_region_base_address: u64,
@@ -1309,7 +1167,7 @@ impl TestInstance {
         }
 
         Self {
-            device: RefCell::new(DataStream::from_bytes(data)),
+            device: Device::new(DataStream::from_bytes(data)),
             allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 10),
 
             data_region_base_address: data_region_base_address as u64,
@@ -1317,7 +1175,7 @@ impl TestInstance {
         }
     }
 
-    fn iterator(&self) -> DirectoryFileEntryIterator<'_, TestInstanceStream> {
+    fn iterator(&self) -> DirectoryFileEntryIterator<'_, TestInstanceStream, 0> {
         DirectoryFileEntryIterator::new(
             &self.device,
             &self.allocation_table,

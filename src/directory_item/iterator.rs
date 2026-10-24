@@ -20,18 +20,18 @@ const MAX_ENTRY_COUNT: usize =
     DIRECTORY_ENTITY_LONG_NAME_MAX_LENGTH.div_ceil(LONG_NAME_CHARACTERS_PER_ENTRY) + 1;
 
 #[derive(Clone, Debug)]
-pub struct DirectoryItemIterator<'a, S>
+pub struct DirectoryItemIterator<'a, S, const N: usize>
 where
     S: ErrorType,
 {
-    entry_iterator: DirectoryEntryIterator<'a, S>,
+    entry_iterator: DirectoryEntryIterator<'a, S, N>,
 }
 
-impl<'a, S> DirectoryItemIterator<'a, S>
+impl<'a, S, const N: usize> DirectoryItemIterator<'a, S, N>
 where
     S: ErrorType,
 {
-    pub fn new(entry_iterator: DirectoryEntryIterator<'a, S>) -> Self {
+    pub fn new(entry_iterator: DirectoryEntryIterator<'a, S, N>) -> Self {
         Self { entry_iterator }
     }
 
@@ -41,7 +41,7 @@ where
 }
 
 #[cfg(feature = "sync")]
-impl<S> DirectoryItemIterator<'_, S>
+impl<S, const N: usize> DirectoryItemIterator<'_, S, N>
 where
     S: Read + Seek,
 {
@@ -107,7 +107,7 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<S> DirectoryItemIterator<'_, S>
+impl<S, const N: usize> DirectoryItemIterator<'_, S, N>
 where
     S: AsyncRead + AsyncSeek,
 {

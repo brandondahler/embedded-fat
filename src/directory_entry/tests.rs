@@ -1,6 +1,7 @@
 use super::*;
 use crate::AsciiOnlyEncoder;
 use crate::file_name::ShortFileName;
+use core::assert_matches;
 
 mod from_bytes {
     use super::*;
@@ -12,12 +13,9 @@ mod from_bytes {
 
         let entry = DirectoryEntry::from_bytes(&data).unwrap();
 
-        assert!(
-            matches!(
-                entry,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free entry should be returned"
+        assert_matches!(
+            entry,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
     }
 
@@ -28,10 +26,7 @@ mod from_bytes {
 
         let entry = DirectoryEntry::from_bytes(&data).unwrap();
 
-        assert!(
-            matches!(entry, DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly)),
-            "CurrentOnly free entry should be returned"
-        );
+        assert_matches!(entry, DirectoryEntry::Free(FreeDirectoryEntry::CurrentOnly));
     }
 
     #[test]
@@ -48,10 +43,7 @@ mod from_bytes {
 
         let entry = DirectoryEntry::from_bytes(&data).unwrap();
 
-        assert!(
-            matches!(entry, DirectoryEntry::ShortName(_)),
-            "ShortName entry should be returned"
-        );
+        assert_matches!(entry, DirectoryEntry::ShortName(_));
     }
 
     #[test]
@@ -61,10 +53,7 @@ mod from_bytes {
 
         let error = DirectoryEntry::from_bytes(&data).unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryError::ShortNameEntryInvalid(_)),
-            "ShortNameEntryInvalid should be returned"
-        );
+        assert_matches!(error, DirectoryEntryError::ShortNameEntryInvalid(_));
     }
 
     #[test]
@@ -84,10 +73,7 @@ mod from_bytes {
 
         let entry = DirectoryEntry::from_bytes(&data).unwrap();
 
-        assert!(
-            matches!(entry, DirectoryEntry::LongName(_)),
-            "LongName entry should be returned"
-        );
+        assert_matches!(entry, DirectoryEntry::LongName(_));
     }
 
     #[test]
@@ -98,9 +84,6 @@ mod from_bytes {
 
         let error = DirectoryEntry::from_bytes(&data).unwrap_err();
 
-        assert!(
-            matches!(error, DirectoryEntryError::LongNameEntryInvalid(_)),
-            "LongNameEntryInvalid should be returned"
-        );
+        assert_matches!(error, DirectoryEntryError::LongNameEntryInvalid(_));
     }
 }

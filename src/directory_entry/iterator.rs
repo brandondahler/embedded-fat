@@ -22,19 +22,19 @@ use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 use crate::mock::ScriptedDirectoryEntryIterator;
 
 #[derive(Clone, Debug)]
-pub enum DirectoryEntryIterator<'a, S>
+pub enum DirectoryEntryIterator<'a, S, const N: usize>
 where
     S: ErrorType,
 {
-    Table(DirectoryTableEntryIterator<'a, S>),
-    File(DirectoryFileEntryIterator<'a, S>),
+    Table(DirectoryTableEntryIterator<'a, S, N>),
+    File(DirectoryFileEntryIterator<'a, S, N>),
 
     #[cfg(test)]
     Scripted(ScriptedDirectoryEntryIterator<'a, S>),
 }
 
 #[cfg(feature = "sync")]
-impl<S> DirectoryEntryIterator<'_, S>
+impl<S, const N: usize> DirectoryEntryIterator<'_, S, N>
 where
     S: Read + Seek,
 {
@@ -72,7 +72,7 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<S> DirectoryEntryIterator<'_, S>
+impl<S, const N: usize> DirectoryEntryIterator<'_, S, N>
 where
     S: AsyncRead + AsyncSeek,
 {
@@ -117,26 +117,28 @@ where
     }
 }
 
-impl<'a, S> From<DirectoryTableEntryIterator<'a, S>> for DirectoryEntryIterator<'a, S>
+impl<'a, S, const N: usize> From<DirectoryTableEntryIterator<'a, S, N>>
+    for DirectoryEntryIterator<'a, S, N>
 where
     S: ErrorType,
 {
-    fn from(value: DirectoryTableEntryIterator<'a, S>) -> Self {
+    fn from(value: DirectoryTableEntryIterator<'a, S, N>) -> Self {
         Self::Table(value)
     }
 }
 
-impl<'a, S> From<DirectoryFileEntryIterator<'a, S>> for DirectoryEntryIterator<'a, S>
+impl<'a, S, const N: usize> From<DirectoryFileEntryIterator<'a, S, N>>
+    for DirectoryEntryIterator<'a, S, N>
 where
     S: ErrorType,
 {
-    fn from(value: DirectoryFileEntryIterator<'a, S>) -> Self {
+    fn from(value: DirectoryFileEntryIterator<'a, S, N>) -> Self {
         Self::File(value)
     }
 }
 
 #[cfg(test)]
-impl<'a, S> From<ScriptedDirectoryEntryIterator<'a, S>> for DirectoryEntryIterator<'a, S>
+impl<'a, S> From<ScriptedDirectoryEntryIterator<'a, S>> for DirectoryEntryIterator<'a, S, 0>
 where
     S: ErrorType,
 {

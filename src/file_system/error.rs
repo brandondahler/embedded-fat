@@ -11,6 +11,7 @@ pub enum FileSystemError<SE>
 where
     SE: embedded_io::Error,
 {
+    DeviceBusy,
     InvalidBiosParameterBlock(BiosParameterBlockError),
     InvalidFatSignature,
     StreamEndReached,
@@ -25,6 +26,7 @@ where
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
+            FileSystemError::DeviceBusy => write!(f, "the device is currently busy"),
             FileSystemError::InvalidBiosParameterBlock(e) => {
                 write!(f, "the bios parameter block is invalid: {}", e)
             }

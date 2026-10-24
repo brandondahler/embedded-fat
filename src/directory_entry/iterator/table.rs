@@ -8,15 +8,16 @@ use embedded_io::{ErrorType, SeekFrom};
 #[cfg(feature = "sync")]
 use embedded_io::{Read, Seek};
 
+use crate::device::Device;
 #[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
 #[derive(Clone, Debug)]
-pub struct DirectoryTableEntryIterator<'a, S>
+pub struct DirectoryTableEntryIterator<'a, S, const N: usize>
 where
     S: ErrorType,
 {
-    device: &'a RefCell<S>,
+    device: &'a Device<S, N>,
 
     start_address: u64,
     entry_count: u16,
@@ -24,11 +25,11 @@ where
     current_entry_index: Option<u16>,
 }
 
-impl<'a, S> DirectoryTableEntryIterator<'a, S>
+impl<'a, S, const N: usize> DirectoryTableEntryIterator<'a, S, N>
 where
     S: ErrorType,
 {
-    pub fn new(device: &'a RefCell<S>, start_address: u64, entry_count: u16) -> Self {
+    pub fn new(device: &'a Device<S, N>, start_address: u64, entry_count: u16) -> Self {
         Self {
             device,
 
@@ -62,7 +63,7 @@ where
 }
 
 #[cfg(feature = "sync")]
-impl<S> DirectoryTableEntryIterator<'_, S>
+impl<S, const N: usize> DirectoryTableEntryIterator<'_, S, N>
 where
     S: Read + Seek,
 {
@@ -75,7 +76,10 @@ where
         let mut directory_entry_bytes = [0; DIRECTORY_ENTRY_SIZE];
 
         {
-            let mut stream = self.device.borrow_mut();
+            let mut stream = self
+                .device
+                .acquire_stream()
+                .map_err(|_| DirectoryEntryIterationError::DeviceBusy)?;
 
             stream.seek(SeekFrom::Start(current_address))?;
             stream.read_exact(&mut directory_entry_bytes)?;
@@ -100,7 +104,7 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<S> DirectoryTableEntryIterator<'_, S>
+impl<S, const N: usize> DirectoryTableEntryIterator<'_, S, N>
 where
     S: AsyncRead + AsyncSeek,
 {
@@ -115,7 +119,11 @@ where
         let mut directory_entry_bytes = [0; DIRECTORY_ENTRY_SIZE];
 
         {
-            let mut stream = self.device.borrow_mut();
+            let mut stream = self
+                .device
+                .acquire_stream_async()
+                .await
+                .map_err(|_| DirectoryEntryIterationError::DeviceBusy)?;
 
             stream.seek(SeekFrom::Start(current_address)).await?;
             stream.read_exact(&mut directory_entry_bytes).await?;

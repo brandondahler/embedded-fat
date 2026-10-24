@@ -13,6 +13,7 @@ where
     SE: embedded_io::Error,
 {
     AllocationTableEntryTypeUnexpected,
+    DeviceBusy,
     EntryInvalid(DirectoryEntryError),
     ItemError(DirectoryItemError),
     StreamEndReached,
@@ -27,6 +28,9 @@ where
         match self {
             DirectoryItemIterationError::AllocationTableEntryTypeUnexpected => {
                 write!(f, "the allocation table entry was an unexpected type")
+            }
+            DirectoryItemIterationError::DeviceBusy => {
+                write!(f, "the device is currently busy")
             }
             DirectoryItemIterationError::EntryInvalid(e) => {
                 write!(f, "an invalid entry was encountered: {}", e)
@@ -55,6 +59,7 @@ where
             DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected => {
                 Self::AllocationTableEntryTypeUnexpected
             }
+            DirectoryEntryIterationError::DeviceBusy => Self::DeviceBusy,
             DirectoryEntryIterationError::EntryInvalid(e) => Self::EntryInvalid(e),
             DirectoryEntryIterationError::StreamEndReached => Self::StreamEndReached,
             DirectoryEntryIterationError::StreamError(e) => Self::StreamError(e),

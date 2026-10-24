@@ -1,5 +1,6 @@
 use super::*;
 use core::array::from_fn;
+use core::assert_matches;
 
 mod from_str {
     use super::*;
@@ -24,10 +25,7 @@ mod from_str {
     fn empty_input_returns_error() {
         let result = LongFileName::from_str("").unwrap_err();
 
-        assert!(
-            matches!(result, LongFileNameStringError::InputEmpty),
-            "Returned error should be InputEmpty"
-        );
+        assert_matches!(result, LongFileNameStringError::InputEmpty);
     }
 
     #[test]
@@ -54,16 +52,12 @@ mod from_str {
 
             let result = LongFileName::from_str(&input).unwrap_err();
 
-            assert!(
-                matches!(
-                    result,
-                    LongFileNameStringError::CharacterInvalid {
-                        character: invalid_character,
-                        offset: 0
-                    }
-                ),
-                "Returned error should be CharacterInvalid(0x{:04X})",
-                invalid_character as u16
+            assert_matches!(
+                result,
+                LongFileNameStringError::CharacterInvalid {
+                    character: invalid_character,
+                    offset: 0
+                }
             );
         }
     }

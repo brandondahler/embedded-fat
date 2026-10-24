@@ -1,4 +1,5 @@
 use super::*;
+use core::assert_matches;
 use strum::IntoEnumIterator;
 
 mod from_entry_value {
@@ -56,12 +57,9 @@ mod from_entry_value {
         entry_value: u32,
         expected_entry: AllocationTableEntry,
     ) {
-        assert!(
-            matches!(
-                AllocationTableEntry::new(table_kind, entry_value),
-                expected_entry
-            ),
-            "table_kind={table_kind:?}, value=0x{entry_value:0X} parses correctly"
+        assert_matches!(
+            AllocationTableEntry::new(table_kind, entry_value),
+            expected_entry
         );
     }
 }

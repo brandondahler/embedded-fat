@@ -20,7 +20,7 @@ mod next {
         let scripted_entry_iterator = ScriptedDirectoryEntryIterator::<VoidStream>::new()
             .with_peek(|index| match index {
                 0 => Ok(Some(expected_short_directory_entry.clone().into())),
-                _ => panic!("Shouldn't be reached"),
+                _ => unreachable!(),
             })
             .with_advance(|index| Ok(index == 0));
 

@@ -3,6 +3,7 @@ use crate::AsciiOnlyEncoder;
 use crate::file_name::ShortFileName;
 use crate::mock::ScriptedCodePageEncoder;
 use alloc::string::String;
+use core::assert_matches;
 
 mod from_str {
     use super::*;
@@ -91,10 +92,7 @@ mod from_str {
     fn input_empty_returns_err() {
         let err = ShortFileName::from_str(&AsciiOnlyEncoder, "").expect_err("Parsing should fail");
 
-        assert!(
-            matches!(err, ShortFileNameParseError::InputEmpty),
-            "Error should be InputEmpty"
-        );
+        assert_matches!(err, ShortFileNameParseError::InputEmpty);
     }
 
     #[test]
@@ -102,10 +100,7 @@ mod from_str {
         let err =
             ShortFileName::from_str(&AsciiOnlyEncoder, ".foo").expect_err("Parsing should fail");
 
-        assert!(
-            matches!(err, ShortFileNameParseError::NameEmpty),
-            "Error should be NameEmpty"
-        );
+        assert_matches!(err, ShortFileNameParseError::NameEmpty);
     }
 
     #[test]
@@ -113,10 +108,7 @@ mod from_str {
         let err = ShortFileName::from_str(&AsciiOnlyEncoder, "123456789.abc")
             .expect_err("Parsing should fail");
 
-        assert!(
-            matches!(err, ShortFileNameParseError::NameTooLong),
-            "Error should be NameTooLong"
-        );
+        assert_matches!(err, ShortFileNameParseError::NameTooLong);
     }
 
     #[test]
@@ -124,10 +116,7 @@ mod from_str {
         let err = ShortFileName::from_str(&AsciiOnlyEncoder, " foo.txt")
             .expect_err("Parsing should fail");
 
-        assert!(
-            matches!(err, ShortFileNameParseError::NameStartsWithSpace),
-            "Error should be NameStartsWithSpace"
-        );
+        assert_matches!(err, ShortFileNameParseError::NameStartsWithSpace);
     }
 
     #[test]
@@ -145,15 +134,12 @@ mod from_str {
             let err = ShortFileName::from_str(&AsciiOnlyEncoder, &character_str)
                 .expect_err("Parsing should fail");
 
-            assert!(
-                matches!(
-                    err,
-                    ShortFileNameParseError::CharacterNotAllowed {
-                        character: invalid_character,
-                        offset: 0,
-                    }
-                ),
-                "Error should be CharacterNotAllowed"
+            assert_matches!(
+                err,
+                ShortFileNameParseError::CharacterNotAllowed {
+                    character: invalid_character,
+                    offset: 0,
+                }
             );
         }
     }
@@ -178,16 +164,13 @@ mod from_str {
             let err = ShortFileName::from_str(&code_page_encoder, "X.A")
                 .expect_err("Parsing should fail");
 
-            assert!(
-                matches!(
-                    err,
-                    ShortFileNameParseError::EncodedCharacterByteNotAllowed {
-                        character: 'X',
-                        encoded_character: character_byte,
-                        offset: 0,
-                    }
-                ),
-                "Error should be EncodedCharacterByteNotAllowed"
+            assert_matches!(
+                err,
+                ShortFileNameParseError::EncodedCharacterByteNotAllowed {
+                    character: 'X',
+                    encoded_character: character_byte,
+                    offset: 0,
+                }
             );
         }
     }
@@ -205,15 +188,12 @@ mod from_str {
         let err =
             ShortFileName::from_str(&code_page_encoder, "X.A").expect_err("Parsing should fail");
 
-        assert!(
-            matches!(
-                err,
-                ShortFileNameParseError::CharacterNotEncodable {
-                    character: 'X',
-                    offset: 0
-                }
-            ),
-            "Error should be CharacterNotEncodable"
+        assert_matches!(
+            err,
+            ShortFileNameParseError::CharacterNotEncodable {
+                character: 'X',
+                offset: 0
+            }
         );
     }
 
@@ -222,10 +202,7 @@ mod from_str {
         let err = ShortFileName::from_str(&AsciiOnlyEncoder, "foo.1234")
             .expect_err("Parsing should fail");
 
-        assert!(
-            matches!(err, ShortFileNameParseError::ExtensionTooLong),
-            "Error should be ExtensionTooLong"
-        );
+        assert_matches!(err, ShortFileNameParseError::ExtensionTooLong);
     }
 
     #[test]
@@ -238,15 +215,12 @@ mod from_str {
             let err = ShortFileName::from_str(&AsciiOnlyEncoder, &character_str)
                 .expect_err("Parsing should fail");
 
-            assert!(
-                matches!(
-                    err,
-                    ShortFileNameParseError::CharacterNotAllowed {
-                        character: invalid_character,
-                        offset: 4
-                    }
-                ),
-                "Error should be CharacterNotAllowed"
+            assert_matches!(
+                err,
+                ShortFileNameParseError::CharacterNotAllowed {
+                    character: invalid_character,
+                    offset: 4
+                }
             );
         }
     }
@@ -271,16 +245,13 @@ mod from_str {
             let err = ShortFileName::from_str(&code_page_encoder, "A.X")
                 .expect_err("Parsing should fail");
 
-            assert!(
-                matches!(
-                    err,
-                    ShortFileNameParseError::EncodedCharacterByteNotAllowed {
-                        character: 'X',
-                        encoded_character: character_byte,
-                        offset: 2
-                    }
-                ),
-                "Error should be EncodedCharacterByteNotAllowed"
+            assert_matches!(
+                err,
+                ShortFileNameParseError::EncodedCharacterByteNotAllowed {
+                    character: 'X',
+                    encoded_character: character_byte,
+                    offset: 2
+                }
             );
         }
     }
@@ -298,15 +269,12 @@ mod from_str {
         let err =
             ShortFileName::from_str(&code_page_encoder, "A.X").expect_err("Parsing should fail");
 
-        assert!(
-            matches!(
-                err,
-                ShortFileNameParseError::CharacterNotEncodable {
-                    character: 'X',
-                    offset: 2
-                }
-            ),
-            "Error should be CharacterNotEncodable"
+        assert_matches!(
+            err,
+            ShortFileNameParseError::CharacterNotEncodable {
+                character: 'X',
+                offset: 2
+            }
         );
     }
 }

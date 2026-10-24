@@ -1,11 +1,13 @@
 use super::*;
 use crate::AllocationTableKind;
 use crate::allocation_table::AllocationTable;
+use crate::device::Device;
 use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, FreeDirectoryEntry};
 use crate::mock::DataStream;
 use crate::utils::write_le_u32;
 use alloc::vec;
 use alloc::vec::Vec;
+use core::assert_matches;
 use core::cell::RefCell;
 
 mod peek {
@@ -17,22 +19,16 @@ mod peek {
 
         let result = test_instance.file_iterator().peek().unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
 
         let result = test_instance.table_iterator().peek().unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
     }
 }
@@ -46,22 +42,16 @@ mod next {
 
         let result = test_instance.file_iterator().next().unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
 
         let result = test_instance.table_iterator().next().unwrap().unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
     }
 }
@@ -97,12 +87,9 @@ mod peek_async {
             .unwrap()
             .unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
 
         let result = test_instance
@@ -112,12 +99,9 @@ mod peek_async {
             .unwrap()
             .unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
     }
 }
@@ -157,12 +141,9 @@ mod next_async {
             .unwrap()
             .unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
 
         let result = test_instance
@@ -172,12 +153,9 @@ mod next_async {
             .unwrap()
             .unwrap();
 
-        assert!(
-            matches!(
-                result,
-                DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
-            ),
-            "AllFollowing free directory entry should be returned"
+        assert_matches!(
+            result,
+            DirectoryEntry::Free(FreeDirectoryEntry::AllFollowing)
         );
     }
 }
@@ -185,7 +163,7 @@ mod next_async {
 type TestInstanceStream = DataStream<Vec<u8>>;
 
 struct TestInstance {
-    device: RefCell<TestInstanceStream>,
+    device: Device<TestInstanceStream, 0>,
     allocation_table: AllocationTable,
 
     data_region_base_address: u64,
@@ -203,7 +181,7 @@ impl TestInstance {
         }
 
         Self {
-            device: RefCell::new(DataStream::from_bytes(data)),
+            device: Device::new(DataStream::from_bytes(data)),
             allocation_table: AllocationTable::new(allocation_table_kind, 0, 10),
 
             entry_count,
@@ -211,7 +189,7 @@ impl TestInstance {
         }
     }
 
-    fn file_iterator(&self) -> DirectoryEntryIterator<'_, TestInstanceStream> {
+    fn file_iterator(&self) -> DirectoryEntryIterator<'_, TestInstanceStream, 0> {
         let iterator = DirectoryFileEntryIterator::new(
             &self.device,
             &self.allocation_table,
@@ -223,7 +201,7 @@ impl TestInstance {
         iterator.into()
     }
 
-    fn table_iterator(&self) -> DirectoryEntryIterator<'_, TestInstanceStream> {
+    fn table_iterator(&self) -> DirectoryEntryIterator<'_, TestInstanceStream, 0> {
         let iterator = DirectoryTableEntryIterator::new(
             &self.device,
             self.data_region_base_address,

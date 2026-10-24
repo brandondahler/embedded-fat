@@ -3,10 +3,10 @@ mod error;
 #[cfg(test)]
 mod tests;
 
-use core::cell::RefCell;
 pub use error::*;
 
 use crate::allocation_table::{AllocationTable, AllocationTableEntry};
+use core::cell::RefCell;
 use core::cmp::min;
 use core::ops::DerefMut;
 use embedded_io::{ErrorType, SeekFrom};
@@ -14,15 +14,16 @@ use embedded_io::{ErrorType, SeekFrom};
 #[cfg(feature = "sync")]
 use embedded_io::{Read, Seek, Write};
 
+use crate::device::Device;
 #[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
 #[derive(Clone, Debug)]
-pub struct File<'a, S>
+pub struct File<'a, S, const N: usize>
 where
     S: ErrorType,
 {
-    device: &'a RefCell<S>,
+    device: &'a Device<S, N>,
     allocation_table: &'a AllocationTable,
 
     data_region_base_address: u64,
@@ -37,12 +38,12 @@ where
     current_cluster_offset: u32,
 }
 
-impl<'a, S> File<'a, S>
+impl<'a, S, const N: usize> File<'a, S, N>
 where
     S: ErrorType,
 {
     pub fn new(
-        device: &'a RefCell<S>,
+        device: &'a Device<S, N>,
         allocation_table: &'a AllocationTable,
         data_region_base_address: u64,
         bytes_per_cluster: u32,
@@ -107,7 +108,7 @@ where
     }
 }
 
-impl<S> ErrorType for File<'_, S>
+impl<S, const N: usize> ErrorType for File<'_, S, N>
 where
     S: ErrorType,
 {
@@ -115,7 +116,7 @@ where
 }
 
 #[cfg(feature = "sync")]
-impl<S> Read for File<'_, S>
+impl<S, const N: usize> Read for File<'_, S, N>
 where
     S: Read + Seek,
 {
@@ -128,7 +129,10 @@ where
         }
 
         let actual_read_size = {
-            let mut stream = self.device.borrow_mut();
+            let mut stream = self
+                .device
+                .acquire_stream()
+                .map_err(|_| FileError::DeviceBusy)?;
 
             stream.seek(SeekFrom::Start(self.current_address()))?;
             stream.read(&mut buf[0..target_read_size])?
@@ -141,7 +145,7 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<S> AsyncRead for File<'_, S>
+impl<S, const N: usize> AsyncRead for File<'_, S, N>
 where
     S: AsyncRead + AsyncSeek,
 {
@@ -153,7 +157,11 @@ where
         }
 
         let actual_read_size = {
-            let mut stream = self.device.borrow_mut();
+            let mut stream = self
+                .device
+                .acquire_stream_async()
+                .await
+                .map_err(|_| FileError::DeviceBusy)?;
 
             stream.seek(SeekFrom::Start(self.current_address())).await?;
             stream.read(&mut buf[0..target_read_size]).await?
@@ -167,7 +175,7 @@ where
 }
 
 #[cfg(feature = "sync")]
-impl<S> Seek for File<'_, S>
+impl<S, const N: usize> Seek for File<'_, S, N>
 where
     S: Read + Seek,
 {
@@ -193,7 +201,10 @@ where
             }
 
             {
-                let mut stream = self.device.borrow_mut();
+                let mut stream = self
+                    .device
+                    .acquire_stream()
+                    .map_err(|_| FileError::DeviceBusy)?;
 
                 // Navigate forward until we get to the correct cluster or reach EOF
                 while new_cluster_offset > self.bytes_per_cluster as i64 {
@@ -228,7 +239,7 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<S> AsyncSeek for File<'_, S>
+impl<S, const N: usize> AsyncSeek for File<'_, S, N>
 where
     S: AsyncRead + AsyncSeek,
 {
@@ -254,7 +265,12 @@ where
             }
 
             {
-                let mut stream = self.device.borrow_mut();
+                let mut stream = self
+                    .device
+                    .acquire_stream_async()
+                    .await
+                    .map_err(|_| FileError::DeviceBusy)?;
+
                 // Navigate forward until we get to the correct cluster or reach EOF
                 while new_cluster_offset >= self.bytes_per_cluster as i64 {
                     match self
@@ -289,7 +305,7 @@ where
 }
 
 #[cfg(feature = "sync")]
-impl<S> Write for File<'_, S>
+impl<S, const N: usize> Write for File<'_, S, N>
 where
     S: Read + Seek + Write,
 {
@@ -299,7 +315,11 @@ where
 
     fn flush(&mut self) -> Result<(), Self::Error> {
         {
-            let mut stream = self.device.borrow_mut();
+            let mut stream = self
+                .device
+                .acquire_stream()
+                .map_err(|_| FileError::DeviceBusy)?;
+
             stream.flush()?;
         }
 
@@ -308,7 +328,7 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<S> AsyncWrite for File<'_, S>
+impl<S, const N: usize> AsyncWrite for File<'_, S, N>
 where
     S: AsyncRead + AsyncSeek + AsyncWrite,
 {
@@ -318,7 +338,12 @@ where
 
     async fn flush(&mut self) -> Result<(), Self::Error> {
         {
-            let mut stream = self.device.borrow_mut();
+            let mut stream = self
+                .device
+                .acquire_stream_async()
+                .await
+                .map_err(|_| FileError::DeviceBusy)?;
+
             stream.flush().await?;
         }
 

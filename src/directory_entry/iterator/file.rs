@@ -10,15 +10,17 @@ use embedded_io::{ErrorType, SeekFrom};
 #[cfg(feature = "sync")]
 use embedded_io::{Read, Seek};
 
+use crate::FileError;
+use crate::device::Device;
 #[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
 #[derive(Clone, Debug)]
-pub struct DirectoryFileEntryIterator<'a, S>
+pub struct DirectoryFileEntryIterator<'a, S, const N: usize>
 where
     S: ErrorType,
 {
-    device: &'a RefCell<S>,
+    device: &'a Device<S, N>,
     allocation_table: &'a AllocationTable,
 
     data_region_base_address: u64,
@@ -28,12 +30,12 @@ where
     current_cluster_offset: u32,
 }
 
-impl<'a, S> DirectoryFileEntryIterator<'a, S>
+impl<'a, S, const N: usize> DirectoryFileEntryIterator<'a, S, N>
 where
     S: ErrorType,
 {
     pub fn new(
-        device: &'a RefCell<S>,
+        device: &'a Device<S, N>,
         allocation_table: &'a AllocationTable,
         data_region_base_address: u64,
         bytes_per_cluster: u32,
@@ -83,7 +85,7 @@ where
 }
 
 #[cfg(feature = "sync")]
-impl<'a, S> DirectoryFileEntryIterator<'a, S>
+impl<'a, S, const N: usize> DirectoryFileEntryIterator<'a, S, N>
 where
     S: Read + Seek,
 {
@@ -97,7 +99,11 @@ where
         let mut directory_entry_bytes = [0; DIRECTORY_ENTRY_SIZE];
 
         {
-            let mut stream = self.device.borrow_mut();
+            let mut stream = self
+                .device
+                .acquire_stream()
+                .map_err(|_| DirectoryEntryIterationError::DeviceBusy)?;
+
             stream.seek(SeekFrom::Start(current_address))?;
             stream.read_exact(&mut directory_entry_bytes)?;
         }
@@ -115,7 +121,10 @@ where
         }
 
         {
-            let mut stream = self.device.borrow_mut();
+            let mut stream = self
+                .device
+                .acquire_stream()
+                .map_err(|_| DirectoryEntryIterationError::DeviceBusy)?;
 
             let allocation_table_entry = self
                 .allocation_table
@@ -139,7 +148,7 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<'a, S> DirectoryFileEntryIterator<'a, S>
+impl<'a, S, const N: usize> DirectoryFileEntryIterator<'a, S, N>
 where
     S: AsyncRead + AsyncSeek,
 {
@@ -154,7 +163,12 @@ where
         let mut directory_entry_bytes = [0; DIRECTORY_ENTRY_SIZE];
 
         {
-            let mut stream = self.device.borrow_mut();
+            let mut stream = self
+                .device
+                .acquire_stream_async()
+                .await
+                .map_err(|_| DirectoryEntryIterationError::DeviceBusy)?;
+
             stream.seek(SeekFrom::Start(current_address)).await?;
             stream.read_exact(&mut directory_entry_bytes).await?;
         }
@@ -172,7 +186,11 @@ where
         }
 
         {
-            let mut stream = self.device.borrow_mut();
+            let mut stream = self
+                .device
+                .acquire_stream_async()
+                .await
+                .map_err(|_| DirectoryEntryIterationError::DeviceBusy)?;
 
             let allocation_table_entry = self
                 .allocation_table

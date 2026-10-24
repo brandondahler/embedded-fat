@@ -8,6 +8,7 @@ mod display {
     #[test]
     fn produces_non_empty_value() {
         let values = [
+            FileSystemError::DeviceBusy,
             FileSystemError::InvalidFatSignature,
             FileSystemError::InvalidBiosParameterBlock(
                 BiosParameterBlockError::AllocationTableCountInvalid,

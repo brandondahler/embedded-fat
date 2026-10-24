@@ -1,5 +1,6 @@
 use super::*;
 use crate::directory_entry::DirectoryEntryAttributes;
+use core::assert_matches;
 
 mod from_bytes {
     use super::*;
@@ -39,10 +40,7 @@ mod from_bytes {
 
         let entry = LongNameDirectoryEntry::from_bytes(&mut data).unwrap_err();
 
-        assert!(
-            matches!(entry, LongNameDirectoryEntryError::EntryNumberInvalid),
-            "EntryNumberInvalid should be returned"
-        );
+        assert_matches!(entry, LongNameDirectoryEntryError::EntryNumberInvalid);
     }
 
     #[test]
@@ -52,10 +50,7 @@ mod from_bytes {
 
         let error = LongNameDirectoryEntry::from_bytes(&mut data).unwrap_err();
 
-        assert!(
-            matches!(error, LongNameDirectoryEntryError::EntryNumberInvalid),
-            "EntryNumberInvalid should be returned"
-        );
+        assert_matches!(error, LongNameDirectoryEntryError::EntryNumberInvalid);
     }
 }
 

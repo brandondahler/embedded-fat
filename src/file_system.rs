@@ -10,10 +10,13 @@ pub use error::*;
 
 use crate::allocation_table::AllocationTable;
 use crate::boot_sector::BiosParameterBlock;
+use crate::device::Device;
 use crate::directory::{Directory, DirectoryFile, DirectoryTable};
+use crate::directory_entry::DirectoryEntryIterationError;
 use crate::directory_item::DirectoryItem;
 use crate::{AllocationTableKind, CodePageEncoder, DirectoryItemIterationError, File};
 use core::error::Error;
+use core::marker::PhantomData;
 use embedded_io::{ErrorType, SeekFrom};
 
 #[cfg(feature = "sync")]
@@ -31,14 +34,14 @@ use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrit
 ///
 /// Using multiple [FileSystem] instances on the same physical storage medium may result in read
 /// and/or filesystem corruption.
-#[derive(Clone, Debug)]
-pub struct FileSystem<S, CPE, IDE>
+#[derive(Debug)]
+pub struct FileSystem<S, const N: usize, CPE, IDE>
 where
     S: ErrorType,
     CPE: CodePageEncoder,
     IDE: Fn(DirectoryItemIterationError<S::Error>),
 {
-    device: RefCell<S>,
+    device: Device<S, N>,
     code_page_encoder: CPE,
 
     allocation_table: AllocationTable,
@@ -47,7 +50,7 @@ where
     on_invalid_directory_entry: IDE,
 }
 
-impl<S, CPE, IDE> FileSystem<S, CPE, IDE>
+impl<S, const N: usize, CPE, IDE> FileSystem<S, N, CPE, IDE>
 where
     S: ErrorType,
     CPE: CodePageEncoder,
@@ -58,7 +61,7 @@ where
         self.allocation_table.kind()
     }
 
-    fn root_directory(&self) -> Directory<'_, S> {
+    fn root_directory(&self) -> Directory<'_, S, N> {
         match self
             .bios_parameter_block
             .root_directory_file_cluster_number()
@@ -80,7 +83,7 @@ where
         }
     }
 
-    fn directory_for(&'_ self, item: &DirectoryItem) -> Option<DirectoryFile<'_, S>> {
+    fn directory_for(&'_ self, item: &DirectoryItem) -> Option<DirectoryFile<'_, S, N>> {
         if item.is_directory() {
             Some(DirectoryFile::new(
                 &self.device,
@@ -94,7 +97,7 @@ where
         }
     }
 
-    fn file_for(&'_ self, item: &DirectoryItem) -> Option<File<'_, S>> {
+    fn file_for(&'_ self, item: &DirectoryItem) -> Option<File<'_, S, N>> {
         if item.is_file() {
             Some(File::new(
                 &self.device,
@@ -125,7 +128,7 @@ where
 }
 
 #[cfg(feature = "sync")]
-impl<S, CPE, IDE> FileSystem<S, CPE, IDE>
+impl<S, const N: usize, CPE, IDE> FileSystem<S, N, CPE, IDE>
 where
     S: Read + Seek,
     CPE: CodePageEncoder,
@@ -133,14 +136,16 @@ where
 {
     /// Loads an existing FAT filesystem from the provided `device`.
     pub fn new(
-        device: RefCell<S>,
+        mut device: Device<S, N>,
         code_page_encoder: CPE,
         on_invalid_directory_entry: IDE,
     ) -> Result<Self, FileSystemError<S::Error>> {
         let mut boot_sector_bytes = [0; 512];
 
         {
-            let mut stream = device.borrow_mut();
+            let mut stream = device
+                .acquire_stream()
+                .map_err(|_| FileSystemError::DeviceBusy)?;
 
             stream.seek(SeekFrom::Start(0))?;
             stream.read_exact(&mut boot_sector_bytes)?;
@@ -167,7 +172,7 @@ where
     }
 
     /// Searches for and opens an existing file.
-    pub fn open(&self, file_path: &str) -> Option<File<'_, S>> {
+    pub fn open(&self, file_path: &str) -> Option<File<'_, S, N>> {
         self.file_for(&self.find_item(file_path)?)
     }
 
@@ -204,7 +209,7 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<S, CPE, IDE> FileSystem<S, CPE, IDE>
+impl<S, const N: usize, CPE, IDE> FileSystem<S, N, CPE, IDE>
 where
     S: AsyncRead + AsyncSeek,
     CPE: CodePageEncoder,
@@ -212,14 +217,17 @@ where
 {
     /// Loads an existing FAT filesystem from the provided `device`.
     pub async fn new_async(
-        device: RefCell<S>,
+        device: Device<S, N>,
         code_page_encoder: CPE,
         on_invalid_directory_entry: IDE,
     ) -> Result<Self, FileSystemError<S::Error>> {
         let mut boot_sector_bytes = [0; 512];
 
         {
-            let mut stream = device.borrow_mut();
+            let mut stream = device
+                .acquire_stream_async()
+                .await
+                .map_err(|_| FileSystemError::DeviceBusy)?;
 
             stream.seek(SeekFrom::Start(0)).await?;
             stream.read_exact(&mut boot_sector_bytes).await?;
@@ -246,7 +254,7 @@ where
     }
 
     /// Searches for and opens an existing file.
-    pub async fn open_async(&self, file_path: &str) -> Option<File<'_, S>> {
+    pub async fn open_async(&self, file_path: &str) -> Option<File<'_, S, N>> {
         self.file_for(&self.find_item_async(file_path).await?)
     }
 

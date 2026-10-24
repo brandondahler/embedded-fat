@@ -1,6 +1,7 @@
 use super::*;
 use crate::mock::{DataStream, ErroringStream, ErroringStreamScenarios, IoError, VoidStream};
 use alloc::rc::Rc;
+use core::assert_matches;
 use core::cell::RefCell;
 use core::fmt::{Debug, Display};
 use embedded_io::ErrorType;
@@ -128,10 +129,7 @@ mod read_entry {
             .read_entry(&mut stream, 0)
             .expect_err("Read should fail");
 
-        assert!(
-            matches!(result, AllocationTableReadError::StreamEndReached),
-            "Error should be StreamEndReached"
-        );
+        assert_matches!(result, AllocationTableReadError::StreamEndReached);
     }
 
     #[test]
@@ -147,10 +145,7 @@ mod read_entry {
             .read_entry(&mut stream, 0)
             .expect_err("Read should fail");
 
-        assert!(
-            matches!(result, AllocationTableReadError::StreamError(_)),
-            "Error should be StreamError"
-        );
+        assert_matches!(result, AllocationTableReadError::StreamError(_));
     }
 
     #[test]
@@ -167,10 +162,7 @@ mod read_entry {
                 .read_entry(&mut stream, 0)
                 .expect_err("Read should fail");
 
-            assert!(
-                matches!(result, AllocationTableReadError::StreamError(_)),
-                "Error should be StreamError"
-            );
+            assert_matches!(result, AllocationTableReadError::StreamError(_));
         }
     }
 }
@@ -294,10 +286,7 @@ mod read_entry_async {
             .await
             .expect_err("Read should fail");
 
-        assert!(
-            matches!(result, AllocationTableReadError::StreamEndReached),
-            "Error should be StreamEndReached"
-        );
+        assert_matches!(result, AllocationTableReadError::StreamEndReached);
     }
 
     #[tokio::test]
@@ -314,10 +303,7 @@ mod read_entry_async {
             .await
             .expect_err("Read should fail");
 
-        assert!(
-            matches!(result, AllocationTableReadError::StreamError(_)),
-            "Error should be StreamError"
-        );
+        assert_matches!(result, AllocationTableReadError::StreamError(_));
     }
 
     #[tokio::test]
@@ -335,10 +321,7 @@ mod read_entry_async {
                 .await
                 .expect_err("Read should fail");
 
-            assert!(
-                matches!(result, AllocationTableReadError::StreamError(_)),
-                "Error should be StreamError"
-            );
+            assert_matches!(result, AllocationTableReadError::StreamError(_));
         }
     }
 }

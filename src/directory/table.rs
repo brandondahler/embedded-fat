@@ -1,26 +1,27 @@
 #[cfg(test)]
 mod tests;
 
+use crate::device::Device;
 use crate::directory_entry::DirectoryTableEntryIterator;
 use core::cell::RefCell;
 use embedded_io::ErrorType;
 
 #[derive(Clone, Debug)]
-pub struct DirectoryTable<'a, S>
+pub struct DirectoryTable<'a, S, const N: usize>
 where
     S: ErrorType,
 {
-    device: &'a RefCell<S>,
+    device: &'a Device<S, N>,
 
     start_address: u64,
     entry_count: u16,
 }
 
-impl<'a, S> DirectoryTable<'a, S>
+impl<'a, S, const N: usize> DirectoryTable<'a, S, N>
 where
     S: ErrorType,
 {
-    pub fn new(device: &'a RefCell<S>, start_address: u64, entry_count: u16) -> Self {
+    pub fn new(device: &'a Device<S, N>, start_address: u64, entry_count: u16) -> Self {
         Self {
             device,
 
@@ -29,7 +30,7 @@ where
         }
     }
 
-    pub fn entries(&self) -> DirectoryTableEntryIterator<'_, S> {
+    pub fn entries(&self) -> DirectoryTableEntryIterator<'_, S, N> {
         DirectoryTableEntryIterator::new(self.device, self.start_address, self.entry_count)
     }
 }

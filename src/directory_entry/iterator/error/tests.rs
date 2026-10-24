@@ -11,6 +11,7 @@ mod display {
     fn produces_non_empty_value() {
         let values = [
             DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected,
+            DirectoryEntryIterationError::DeviceBusy,
             DirectoryEntryIterationError::EntryInvalid(DirectoryEntryError::ShortNameEntryInvalid(
                 ShortNameDirectoryEntryError::NameInvalid(ShortFileNameError::CharacterInvalid {
                     character: 0x41,
