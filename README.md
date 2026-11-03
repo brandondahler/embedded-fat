@@ -3,7 +3,7 @@ A FAT filesystem implementation optimized for embedded systems.
 
 **Maintainer note: This project is still in active development and is not released anywhere.**
 
-## Features
+## Package Features
 | Name                   | Description                                                                                                    | Default | Code Impact                                                                                                                                                                                                                                                                                                                       |
 |------------------------|----------------------------------------------------------------------------------------------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `async`                | Adds support for the async API                                                                                 | Enabled | Disabling shrinks the dependency tree and reduces the total code required, this may improve compilation performance if disabled.                                                                                                                                                                                                  |
@@ -25,6 +25,29 @@ let mut file = file_system
 let mut bytes = [0; 5];
 file.read_exact(&mut bytes).unwrap();
 ```
+
+## Block-level Access
+Block-level access is implemented through the stream instance passed into the FileSystemBuilder. Streams must implement 
+`Read + Seek` to support read access, with `Write` additionally required for write access. Both synchronous traits from 
+`embedded-io` and asyncrhonous traits from `embedded-io-async` are supported
+
+The `FileSystem` and `File` instances expose the corresponding synchronous and/or asynchronous methods based on the 
+underlying stream's capabilities.
+
+## Async Support
+Embedded systems often interact directly with hardware peripherals, which can perform I/O operations independently of 
+the CPU. Asynchronous block-level access allows these operations to proceed without blocking the calling task, allowing
+other work to be performed while waiting for I/O to complete.
+
+This is particularly useful when working with hardware-assisted I/O, such as DMA transfers, hardware SPI peripherals, 
+and programmable I/O peripherals, which can handle portions of the data transfer independently of the CPU.
+
+Asynchronous I/O operations are managed through a bounded queue, allowing multiple operations to remain outstanding 
+concurrently. The maximum number of outstanding operations is configurable through `FileSystemBuilder`, providing 
+control over concurrency and memory usage without requiring dynamic allocation.
+
+See the [RTIC](https://rtic.rs) and [Embassy](https://embassy.dev/) projects for frameworks that provide async runtimes
+and concurrency primitives suitable for embedded systems.
 
 ## License
 Licensed under either of

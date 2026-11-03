@@ -35,7 +35,7 @@ pub fn fold_character(character: char) -> char {
                 ENTRIES_01_ITEM_OFFSET as usize
             )
         }
-        _ => codepoint,
+        _ => return character,
     };
 
     // SAFETY: Source guarantees that it is a valid value

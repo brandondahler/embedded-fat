@@ -41,28 +41,39 @@ tasks {
         dependsOn(cargoFormatCheck, cargoClippy)
     }
 
+    val downloadCaseFoldingTxt = register("downloadCaseFoldingTxt", Download::class) {
+        val outputFile = getTemporaryDir().toPath().resolve("CaseFolding.txt").toFile()
+
+        src("https://www.unicode.org/Public/UCD/latest/ucd/CaseFolding.txt")
+        dest(outputFile)
+        overwrite(true)
+
+        onlyIf {
+            !outputFile.exists() ||
+                outputFile.lastModified() < Instant.now()
+                    .minus(Duration.ofDays(1))
+                    .toEpochMilli()
+        }
+    }
+
     val regenerateUnicodeCasing = register("regenerateUnicodeCasing", Exec::class) {
-        val caseFoldingFileLocation = getTemporaryDir().toPath().resolve("CaseFolding.txt").toFile()
+        val caseFoldingTxt = downloadCaseFoldingTxt.map { it.dest }
         val outputFile = project.parent!!.layout.projectDirectory.file("src/encoding/unicode/case_folding.rs")
 
+        inputs.file(caseFoldingTxt)
+
         commandLine(
-            "cargo", "run", "--",
-            "--case-folding-file", caseFoldingFileLocation,
-            "--output-file", outputFile
+            "cargo", "run", "--"
         )
 
-        doFirst {
-            val yesterday = Instant.now().minus(Duration.ofDays(1))
-            val shouldOverwrite = caseFoldingFileLocation.lastModified() < yesterday.toEpochMilli()
+        argumentProviders.add(CommandLineArgumentProvider {
+            listOf(
+                "--case-folding-file", caseFoldingTxt.get().toString(),
+                "--output-file", outputFile.toString()
+            )
+        })
 
-            download.run {
-                src("https://www.unicode.org/Public/UCD/latest/ucd/CaseFolding.txt")
-                dest(caseFoldingFileLocation)
-                overwrite(shouldOverwrite)
-            }
 
-            mkdir(outputFile.asFile.parent)
-        }
     }
 
     register("fmt") {

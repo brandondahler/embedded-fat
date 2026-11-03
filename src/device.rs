@@ -16,6 +16,11 @@ use core::task::Waker;
 use critical_section::Mutex;
 use embedded_io::ErrorType;
 
+// TODO: Consider pulling out the general concept of having a mechanism for queued, async, leased
+//   resource sharing. This implementation is useful to achieve the goal, in this library, but it's
+//   equally valuable for other embedded use-cases where resource sharing is needed but locking
+//   isn't desirable.
+
 /// A device which can queue up to N futures.
 #[derive(Debug)]
 pub struct Device<S, const N: usize>
