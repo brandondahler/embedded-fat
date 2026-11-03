@@ -7,41 +7,41 @@ plugins {
 }
 
 tasks {
-    val cargoFormat by registering(Exec::class) {
+    val cargoFormat = register("cargoFormat", Exec::class) {
         commandLine("cargo", "fmt")
     }
 
-    val cargoClippy by registering(Exec::class) {
-        shouldRunAfter(cargoFormat)
+    val cargoClippy = register("cargoClippy", Exec::class) {
+        mustRunAfter(cargoFormat)
 
         commandLine("cargo", "clippy")
     }
 
-    val cargoBuild by registering(Exec::class) {
-        shouldRunAfter(cargoClippy, cargoFormat)
+    val cargoBuild = register("cargoBuild", Exec::class) {
+        mustRunAfter(cargoClippy, cargoFormat)
 
         commandLine("cargo", "build")
     }
 
-    val cargoFormatCheck by registering(Exec::class) {
-        shouldRunAfter(cargoFormat)
+    val cargoFormatCheck = register("cargoFormatCheck", Exec::class) {
+        mustRunAfter(cargoFormat)
 
         commandLine("cargo", "fmt", "--check")
     }
 
-    val cargoClean by registering(Exec::class) {
+    val cargoClean = register("cargoClean", Exec::class) {
         commandLine("cargo", "clean")
     }
 
-    val compile by registering {
+    val compile = register("compile") {
         dependsOn(cargoBuild)
     }
 
-    val check by registering {
+    val check = register("check") {
         dependsOn(cargoFormatCheck, cargoClippy)
     }
 
-    val regenerateUnicodeCasing by registering(Exec::class) {
+    val regenerateUnicodeCasing = register("regenerateUnicodeCasing", Exec::class) {
         val caseFoldingFileLocation = getTemporaryDir().toPath().resolve("CaseFolding.txt").toFile()
         val outputFile = project.parent!!.layout.projectDirectory.file("src/encoding/unicode/case_folding.rs")
 

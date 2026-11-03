@@ -9,24 +9,24 @@ val featuresMatrix = listOf(
 );
 
 tasks {
-    val cargoFormat by registering(Exec::class) {
+    val cargoFormat = register("cargoFormat", Exec::class) {
         commandLine("cargo", "fmt")
     }
 
-    val cargoFormatCheck by registering(Exec::class) {
-        shouldRunAfter(cargoFormat)
+    val cargoFormatCheck = register("cargoFormatCheck", Exec::class) {
+        mustRunAfter(cargoFormat)
 
         commandLine("cargo", "fmt", "--check")
     }
 
-    val cargoClippy by registering(Exec::class) {
-        shouldRunAfter(cargoFormat)
+    val cargoClippy = register("cargoClippy", Exec::class) {
+        mustRunAfter(cargoFormat)
 
         commandLine("cargo", "clippy")
     }
 
-    val cargoBuild by registering(Exec::class) {
-        shouldRunAfter(cargoFormat, cargoFormatCheck, cargoClippy)
+    val cargoBuild = register("cargoBuild", Exec::class) {
+        mustRunAfter(cargoFormat, cargoFormatCheck, cargoClippy)
 
         commandLine("cargo", "build")
     }
@@ -37,7 +37,7 @@ tasks {
         val name = it.map { toTitleCase(it) }.joinToString("")
 
         val taskProvider = register("cargoBuildFeatures$name", Exec::class) {
-            shouldRunAfter(cargoBuild)
+            mustRunAfter(cargoBuild)
 
             commandLine("cargo", "build", "--no-default-features", "--features", it.joinToString(","))
         }
@@ -45,8 +45,8 @@ tasks {
         cargoBuildFeaturesTasks.add(taskProvider)
     }
 
-    val cargoTest by registering(Exec::class) {
-        shouldRunAfter(cargoClippy, cargoFormat, cargoBuild)
+    val cargoTest = register("cargoTest", Exec::class) {
+        mustRunAfter(cargoClippy, cargoFormat, cargoBuild)
 
         commandLine(
             "cargo", "llvm-cov", "test",
@@ -54,8 +54,9 @@ tasks {
             "--html")
     }
 
-    val cargoTestWithoutUnicodeCasesFolding by registering(Exec::class) {
-        shouldRunAfter(cargoClippy, cargoFormat, cargoTest, "cargoBuildFeaturesAsyncSync")
+    val cargoTestWithoutUnicodeCasesFolding = register("cargoTestWithoutUnicodeCasesFolding", Exec::class) {
+        mustRunAfter(cargoClippy, cargoFormat, cargoTest)
+        shouldRunAfter("cargoBuildFeaturesAsyncSync")
 
         commandLine(
             "cargo", "llvm-cov", "test",
@@ -65,23 +66,23 @@ tasks {
             "--features", "async,sync")
     }
 
-    val cargoClean by registering(Exec::class) {
+    val cargoClean = register("cargoClean", Exec::class) {
         commandLine("cargo", "clean")
     }
 
-    val compile by registering {
+    val compile = register("compile") {
         dependsOn(cargoBuild, cargoBuildFeaturesTasks)
     }
 
-    val check by registering {
+    val check = register("check") {
         dependsOn(cargoFormatCheck, cargoClippy)
     }
 
-    val test by registering {
+    val test = register("test") {
         dependsOn(cargoTest, cargoTestWithoutUnicodeCasesFolding)
     }
 
-    val fmt by registering {
+    val fmt = register("fmt") {
         dependsOn(cargoFormat)
     }
 

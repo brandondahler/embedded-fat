@@ -276,7 +276,7 @@ where
                     }
                 };
 
-                if item.is_match(&self.code_page_encoder, file_path) {
+                if item.is_match(&self.code_page_encoder, file_path_part) {
                     file_path_part = match file_path_part_iterator.next() {
                         Some(next_file_path_part) => next_file_path_part,
                         None => return Some(item),

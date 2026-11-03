@@ -1,3 +1,4 @@
+use std::assert_matches;
 use std::collections::{BTreeMap, HashSet};
 
 pub struct ProcessedMappings {

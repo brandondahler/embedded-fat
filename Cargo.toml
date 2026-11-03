@@ -23,7 +23,7 @@ critical-section = { version = "1", features = ["std"] }
 embedded-io = { version = "0.7", features = ["std"] }
 embedded-io-async = { version = "0.7", features = ["std"] }
 strum = { version = "0.28", features = ["derive"] }
-tokio = { version = "1", features = ["macros", "rt"] }
+tokio = { version = "1", features = ["macros", "rt", "sync", "time"] }
 
 [[bench]]
 name = "unicode_case_folding"

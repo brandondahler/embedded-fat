@@ -77,7 +77,7 @@ where
             "device_stream_dropped called on a non-busy Device"
         );
 
-        let waker = critical_section::with(|cs| self.waker_queue.borrow_ref_mut(cs).pop());
+        let waker = critical_section::with(|cs| self.waker_queue.borrow_ref_mut(cs).next_waker());
 
         if let Some(waker) = waker {
             waker.wake();
@@ -106,7 +106,11 @@ where
         }
     }
 
-    fn update_waker(&self, lease: &DeviceWakerQueueLease, waker: Waker) -> bool {
+    fn try_update_waker(
+        &self,
+        lease: DeviceWakerQueueLease,
+        waker: &Waker,
+    ) -> Option<DeviceWakerQueueLease> {
         critical_section::with(|cs| {
             let mut waker_queue = self.waker_queue.borrow_ref_mut(cs);
 
@@ -114,7 +118,7 @@ where
         })
     }
 
-    fn cancel_waker(&self, lease: DeviceWakerQueueLease) -> bool {
+    fn try_cancel_waker(&self, lease: DeviceWakerQueueLease) -> bool {
         critical_section::with(|cs| {
             let mut waker_queue = self.waker_queue.borrow_ref_mut(cs);
 
