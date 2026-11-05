@@ -143,9 +143,7 @@ where
         let mut boot_sector_bytes = [0; 512];
 
         {
-            let mut stream = device
-                .try_acquire_resource()
-                .map_err(|_| FileSystemError::DeviceBusy)?;
+            let mut stream = device.try_acquire_resource()?;
 
             stream.seek(SeekFrom::Start(0))?;
             stream.read_exact(&mut boot_sector_bytes)?;
@@ -224,10 +222,7 @@ where
         let mut boot_sector_bytes = [0; 512];
 
         {
-            let mut stream = device
-                .acquire_resource_async()
-                .await
-                .map_err(|_| FileSystemError::DeviceBusy)?;
+            let mut stream = device.acquire_resource_async().await?;
 
             stream.seek(SeekFrom::Start(0)).await?;
             stream.read_exact(&mut boot_sector_bytes).await?;

@@ -2,6 +2,7 @@
 mod tests;
 
 use crate::BiosParameterBlockError;
+use crate::queued_resource::QueuedResourceBusyError;
 use core::error::Error;
 use core::fmt::{Display, Formatter};
 use embedded_io::{ErrorType, ReadExactError};
@@ -59,6 +60,15 @@ where
 {
     fn from(value: SE) -> Self {
         FileSystemError::StreamError(value)
+    }
+}
+
+impl<SE> From<QueuedResourceBusyError> for FileSystemError<SE>
+where
+    SE: embedded_io::Error,
+{
+    fn from(value: QueuedResourceBusyError) -> Self {
+        Self::DeviceBusy
     }
 }
 

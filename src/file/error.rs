@@ -2,6 +2,7 @@
 mod tests;
 
 use crate::allocation_table::AllocationTableReadError;
+use crate::queued_resource::{QueuedResource, QueuedResourceBusyError};
 use core::error::Error;
 use core::fmt::{Display, Formatter};
 use embedded_io::{ErrorKind, ReadExactError};
@@ -69,15 +70,12 @@ where
     }
 }
 
-impl<SE> From<ReadExactError<SE>> for FileError<SE>
+impl<SE> From<QueuedResourceBusyError> for FileError<SE>
 where
     SE: embedded_io::Error,
 {
-    fn from(value: ReadExactError<SE>) -> Self {
-        match value {
-            ReadExactError::Other(stream_error) => stream_error.into(),
-            ReadExactError::UnexpectedEof => FileError::StreamEndReached,
-        }
+    fn from(value: QueuedResourceBusyError) -> Self {
+        Self::DeviceBusy
     }
 }
 
@@ -89,6 +87,18 @@ where
         match value {
             AllocationTableReadError::StreamEndReached => FileError::StreamEndReached,
             AllocationTableReadError::StreamError(stream_error) => stream_error.into(),
+        }
+    }
+}
+
+impl<SE> From<ReadExactError<SE>> for FileError<SE>
+where
+    SE: embedded_io::Error,
+{
+    fn from(value: ReadExactError<SE>) -> Self {
+        match value {
+            ReadExactError::Other(stream_error) => stream_error.into(),
+            ReadExactError::UnexpectedEof => FileError::StreamEndReached,
         }
     }
 }

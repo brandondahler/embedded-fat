@@ -76,10 +76,7 @@ where
         let mut directory_entry_bytes = [0; DIRECTORY_ENTRY_SIZE];
 
         {
-            let mut stream = self
-                .device
-                .try_acquire_resource()
-                .map_err(|_| DirectoryEntryIterationError::DeviceBusy)?;
+            let mut stream = self.device.try_acquire_resource()?;
 
             stream.seek(SeekFrom::Start(current_address))?;
             stream.read_exact(&mut directory_entry_bytes)?;
@@ -119,11 +116,7 @@ where
         let mut directory_entry_bytes = [0; DIRECTORY_ENTRY_SIZE];
 
         {
-            let mut stream = self
-                .device
-                .acquire_resource_async()
-                .await
-                .map_err(|_| DirectoryEntryIterationError::DeviceBusy)?;
+            let mut stream = self.device.acquire_resource_async().await?;
 
             stream.seek(SeekFrom::Start(current_address)).await?;
             stream.read_exact(&mut directory_entry_bytes).await?;

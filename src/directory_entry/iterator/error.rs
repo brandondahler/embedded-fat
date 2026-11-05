@@ -3,6 +3,7 @@ mod tests;
 
 use crate::allocation_table::AllocationTableReadError;
 use crate::directory_entry::DirectoryEntryError;
+use crate::queued_resource::QueuedResourceBusyError;
 use core::error::Error;
 use core::fmt::{Display, Formatter};
 use embedded_io::ReadExactError;
@@ -73,6 +74,15 @@ where
 {
     fn from(value: DirectoryEntryError) -> Self {
         Self::EntryInvalid(value)
+    }
+}
+
+impl<SE> From<QueuedResourceBusyError> for DirectoryEntryIterationError<SE>
+where
+    SE: embedded_io::Error,
+{
+    fn from(value: QueuedResourceBusyError) -> Self {
+        Self::DeviceBusy
     }
 }
 
