@@ -15,11 +15,14 @@
 //!   * Instead, embedded systems often utilize asynchronous runtimes to context switch between
 //!     the active program loop and offloading work to dedicated peripherals.
 
-#![cfg_attr(not(test), no_std)]
+#![no_std]
 #![allow(dead_code, unused)]
 
 #[cfg(test)]
 extern crate alloc;
+
+#[cfg(test)]
+extern crate std;
 
 #[macro_use]
 mod utils;

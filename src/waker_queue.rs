@@ -52,9 +52,15 @@ impl<const N: usize> WakerQueue<N> {
         Some(WakerQueueLease(insert_index))
     }
 
-    /// Gets the next non-canceled waker and marks it as ready.
+    /// Gets the next non-canceled waker and marks it as ready. The caller is responsible for
+    /// calling [Waker::wake] and ensuring that this method is not called again until after the
+    /// [WakerQueueLease] has been forfeit via [WakerQueue::try_update] or [WakerQueue::try_cancel].
     ///
     /// A value of `None` implies that the queue is now empty.
+    ///
+    /// # Panics
+    /// When called prior to the most recently returned Waker calling [WakerQueue::try_update] or
+    /// [WakerQueue::try_cancel] with its matching [WakerQueueLease].
     pub fn next_waker(&mut self) -> Option<Waker> {
         while (self.size > 0) {
             let current_index = self.start;
@@ -83,7 +89,7 @@ impl<const N: usize> WakerQueue<N> {
         let waker_slot = &mut self.waker_slots[lease.0];
 
         match waker_slot {
-            WakerSlot::Free => panic!("Attempted to update free waker slot"),
+            WakerSlot::Free => unreachable!("Attempted to update free waker slot"),
             WakerSlot::Waiting(waker_slot_waker) => {
                 waker_slot_waker.clone_from(waker);
                 Some(lease)
@@ -102,13 +108,15 @@ impl<const N: usize> WakerQueue<N> {
     pub fn try_cancel(&mut self, lease: WakerQueueLease) -> bool {
         let waker_slot = &mut self.waker_slots[lease.0];
 
-        match waker_slot {
-            WakerSlot::Free => panic!("Attempted to cancel already free waker slot"),
-            WakerSlot::Waiting(waker) => {
-                *waker_slot = WakerSlot::Free;
-                true
+        match mem::replace(waker_slot, WakerSlot::Free) {
+            WakerSlot::Free => unreachable!("Attempted to cancel already free waker slot"),
+            WakerSlot::Waiting(waker) => true,
+            WakerSlot::Running => {
+                self.start = Self::wrapping_add(self.start, 1);
+                self.size -= 1;
+
+                false
             }
-            WakerSlot::Running => false,
         }
     }
 

@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use core::error::Error;
 use core::fmt::{Debug, Display, Formatter};
 

@@ -2,6 +2,9 @@ mod busy_error;
 mod lease;
 mod lease_future;
 
+#[cfg(test)]
+mod tests;
+
 pub use busy_error::*;
 pub use lease::*;
 pub use lease_future::*;

@@ -1,6 +1,7 @@
 use crate::queued_resource::QueuedResource;
 use core::ops::{Deref, DerefMut};
 
+#[derive(Debug)]
 pub struct QueuedResourceLease<'a, T, const N: usize> {
     queued_resource: &'a QueuedResource<T, N>,
 }
