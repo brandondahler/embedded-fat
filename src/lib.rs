@@ -33,8 +33,9 @@ mod encoding;
 mod file;
 mod file_name;
 mod file_system;
+mod queued_resource;
+mod waker_queue;
 
-mod device;
 #[cfg(test)]
 mod mock;
 

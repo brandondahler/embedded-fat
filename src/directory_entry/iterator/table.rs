@@ -2,13 +2,13 @@
 mod tests;
 
 use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, DirectoryEntry, DirectoryEntryIterationError};
+use crate::queued_resource::QueuedResource;
 use core::cell::RefCell;
 use embedded_io::{ErrorType, SeekFrom};
 
 #[cfg(feature = "sync")]
 use embedded_io::{Read, Seek};
 
-use crate::device::Device;
 #[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
@@ -17,7 +17,7 @@ pub struct DirectoryTableEntryIterator<'a, S, const N: usize>
 where
     S: ErrorType,
 {
-    device: &'a Device<S, N>,
+    device: &'a QueuedResource<S, N>,
 
     start_address: u64,
     entry_count: u16,
@@ -29,7 +29,7 @@ impl<'a, S, const N: usize> DirectoryTableEntryIterator<'a, S, N>
 where
     S: ErrorType,
 {
-    pub fn new(device: &'a Device<S, N>, start_address: u64, entry_count: u16) -> Self {
+    pub fn new(device: &'a QueuedResource<S, N>, start_address: u64, entry_count: u16) -> Self {
         Self {
             device,
 
@@ -78,7 +78,7 @@ where
         {
             let mut stream = self
                 .device
-                .acquire_stream()
+                .try_acquire_resource()
                 .map_err(|_| DirectoryEntryIterationError::DeviceBusy)?;
 
             stream.seek(SeekFrom::Start(current_address))?;
@@ -121,7 +121,7 @@ where
         {
             let mut stream = self
                 .device
-                .acquire_stream_async()
+                .acquire_resource_async()
                 .await
                 .map_err(|_| DirectoryEntryIterationError::DeviceBusy)?;
 

@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests;
 
+use crate::queued_resource::QueuedResource;
 use crate::{
     AsciiOnlyEncoder, CodePageEncoder, DirectoryItemIterationError, FileSystem, FileSystemError,
 };
@@ -10,7 +11,6 @@ use embedded_io::{ErrorType, SeekFrom};
 #[cfg(feature = "sync")]
 use embedded_io::{Read, Seek};
 
-use crate::device::Device;
 #[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
@@ -97,7 +97,7 @@ where
     /// Creates the [FileSystem] instance based on the builder's current configuration.
     pub fn build(self) -> Result<FileSystem<S, N, CPE, IDE>, FileSystemError<S::Error>> {
         FileSystem::new(
-            Device::new(self.stream),
+            QueuedResource::new(self.stream),
             self.code_page_encoder,
             self.on_invalid_directory_entry,
         )
@@ -116,7 +116,7 @@ where
         self,
     ) -> Result<FileSystem<S, N, CPE, IDE>, FileSystemError<S::Error>> {
         FileSystem::new_async(
-            Device::new(self.stream),
+            QueuedResource::new(self.stream),
             self.code_page_encoder,
             self.on_invalid_directory_entry,
         )

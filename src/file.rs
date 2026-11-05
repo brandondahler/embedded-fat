@@ -6,6 +6,7 @@ mod tests;
 pub use error::*;
 
 use crate::allocation_table::{AllocationTable, AllocationTableEntry};
+use crate::queued_resource::QueuedResource;
 use core::cell::RefCell;
 use core::cmp::min;
 use core::ops::DerefMut;
@@ -14,7 +15,6 @@ use embedded_io::{ErrorType, SeekFrom};
 #[cfg(feature = "sync")]
 use embedded_io::{Read, Seek, Write};
 
-use crate::device::Device;
 #[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
@@ -23,7 +23,7 @@ pub struct File<'a, S, const N: usize>
 where
     S: ErrorType,
 {
-    device: &'a Device<S, N>,
+    device: &'a QueuedResource<S, N>,
     allocation_table: &'a AllocationTable,
 
     data_region_base_address: u64,
@@ -43,7 +43,7 @@ where
     S: ErrorType,
 {
     pub fn new(
-        device: &'a Device<S, N>,
+        device: &'a QueuedResource<S, N>,
         allocation_table: &'a AllocationTable,
         data_region_base_address: u64,
         bytes_per_cluster: u32,
@@ -131,7 +131,7 @@ where
         let actual_read_size = {
             let mut stream = self
                 .device
-                .acquire_stream()
+                .try_acquire_resource()
                 .map_err(|_| FileError::DeviceBusy)?;
 
             stream.seek(SeekFrom::Start(self.current_address()))?;
@@ -159,7 +159,7 @@ where
         let actual_read_size = {
             let mut stream = self
                 .device
-                .acquire_stream_async()
+                .acquire_resource_async()
                 .await
                 .map_err(|_| FileError::DeviceBusy)?;
 
@@ -203,7 +203,7 @@ where
             {
                 let mut stream = self
                     .device
-                    .acquire_stream()
+                    .try_acquire_resource()
                     .map_err(|_| FileError::DeviceBusy)?;
 
                 // Navigate forward until we get to the correct cluster or reach EOF
@@ -267,7 +267,7 @@ where
             {
                 let mut stream = self
                     .device
-                    .acquire_stream_async()
+                    .acquire_resource_async()
                     .await
                     .map_err(|_| FileError::DeviceBusy)?;
 
@@ -317,7 +317,7 @@ where
         {
             let mut stream = self
                 .device
-                .acquire_stream()
+                .try_acquire_resource()
                 .map_err(|_| FileError::DeviceBusy)?;
 
             stream.flush()?;
@@ -340,7 +340,7 @@ where
         {
             let mut stream = self
                 .device
-                .acquire_stream_async()
+                .acquire_resource_async()
                 .await
                 .map_err(|_| FileError::DeviceBusy)?;
 

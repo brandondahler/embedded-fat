@@ -1,9 +1,9 @@
 use super::*;
 use crate::AllocationTableKind;
 use crate::allocation_table::AllocationTable;
-use crate::device::Device;
 use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, FreeDirectoryEntry};
 use crate::mock::DataStream;
+use crate::queued_resource::QueuedResource;
 use crate::utils::write_le_u32;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -163,7 +163,7 @@ mod next_async {
 type TestInstanceStream = DataStream<Vec<u8>>;
 
 struct TestInstance {
-    device: Device<TestInstanceStream, 0>,
+    device: QueuedResource<TestInstanceStream, 0>,
     allocation_table: AllocationTable,
 
     data_region_base_address: u64,
@@ -181,7 +181,7 @@ impl TestInstance {
         }
 
         Self {
-            device: Device::new(DataStream::from_bytes(data)),
+            device: QueuedResource::new(DataStream::from_bytes(data)),
             allocation_table: AllocationTable::new(allocation_table_kind, 0, 10),
 
             entry_count,

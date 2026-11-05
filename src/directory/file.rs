@@ -2,8 +2,8 @@
 mod tests;
 
 use crate::allocation_table::AllocationTable;
-use crate::device::Device;
 use crate::directory_entry::DirectoryFileEntryIterator;
+use crate::queued_resource::QueuedResource;
 use core::cell::RefCell;
 use embedded_io::ErrorType;
 
@@ -12,7 +12,7 @@ pub struct DirectoryFile<'a, S, const N: usize>
 where
     S: ErrorType,
 {
-    device: &'a Device<S, N>,
+    device: &'a QueuedResource<S, N>,
     allocation_table: &'a AllocationTable,
 
     data_region_base_address: u64,
@@ -26,7 +26,7 @@ where
     S: ErrorType,
 {
     pub fn new(
-        device: &'a Device<S, N>,
+        device: &'a QueuedResource<S, N>,
         allocation_table: &'a AllocationTable,
         data_region_base_address: u64,
         bytes_per_cluster: u32,

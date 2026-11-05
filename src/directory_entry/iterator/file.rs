@@ -1,17 +1,17 @@
 #[cfg(test)]
 mod tests;
 
+use crate::FileError;
 use crate::allocation_table::{AllocationTable, AllocationTableEntry};
 use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, DirectoryEntry, DirectoryEntryIterationError};
+use crate::queued_resource::QueuedResource;
 use core::cell::RefCell;
 use core::ops::DerefMut;
-use embedded_io::{ErrorType, SeekFrom};
 
+use embedded_io::{ErrorType, SeekFrom};
 #[cfg(feature = "sync")]
 use embedded_io::{Read, Seek};
 
-use crate::FileError;
-use crate::device::Device;
 #[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
@@ -20,7 +20,7 @@ pub struct DirectoryFileEntryIterator<'a, S, const N: usize>
 where
     S: ErrorType,
 {
-    device: &'a Device<S, N>,
+    device: &'a QueuedResource<S, N>,
     allocation_table: &'a AllocationTable,
 
     data_region_base_address: u64,
@@ -35,7 +35,7 @@ where
     S: ErrorType,
 {
     pub fn new(
-        device: &'a Device<S, N>,
+        device: &'a QueuedResource<S, N>,
         allocation_table: &'a AllocationTable,
         data_region_base_address: u64,
         bytes_per_cluster: u32,
@@ -101,7 +101,7 @@ where
         {
             let mut stream = self
                 .device
-                .acquire_stream()
+                .try_acquire_resource()
                 .map_err(|_| DirectoryEntryIterationError::DeviceBusy)?;
 
             stream.seek(SeekFrom::Start(current_address))?;
@@ -123,7 +123,7 @@ where
         {
             let mut stream = self
                 .device
-                .acquire_stream()
+                .try_acquire_resource()
                 .map_err(|_| DirectoryEntryIterationError::DeviceBusy)?;
 
             let allocation_table_entry = self
@@ -165,7 +165,7 @@ where
         {
             let mut stream = self
                 .device
-                .acquire_stream_async()
+                .acquire_resource_async()
                 .await
                 .map_err(|_| DirectoryEntryIterationError::DeviceBusy)?;
 
@@ -188,7 +188,7 @@ where
         {
             let mut stream = self
                 .device
-                .acquire_stream_async()
+                .acquire_resource_async()
                 .await
                 .map_err(|_| DirectoryEntryIterationError::DeviceBusy)?;
 

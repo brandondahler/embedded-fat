@@ -1,7 +1,8 @@
+use core::debug_assert_matches;
+use core::mem;
 use core::task::Waker;
-use core::{debug_assert_matches, mem};
 
-pub struct DeviceWakerQueueLease(usize);
+pub struct WakerQueueLease(usize);
 
 #[derive(Clone, Debug)]
 enum WakerSlot {
@@ -11,14 +12,14 @@ enum WakerSlot {
 }
 
 #[derive(Clone, Debug)]
-pub struct DeviceWakerQueue<const N: usize> {
+pub struct WakerQueue<const N: usize> {
     waker_slots: [WakerSlot; N],
     start: usize,
     size: usize,
 }
 
-impl<const N: usize> DeviceWakerQueue<N> {
-    pub fn new() -> DeviceWakerQueue<N> {
+impl<const N: usize> WakerQueue<N> {
+    pub fn new() -> WakerQueue<N> {
         Self {
             waker_slots: [const { WakerSlot::Free }; N],
             start: 0,
@@ -32,7 +33,7 @@ impl<const N: usize> DeviceWakerQueue<N> {
 
     /// Pushes the provided waker into the next available slot and returns its lease if space is
     /// available.
-    pub fn push(&mut self, waker: Waker) -> Option<DeviceWakerQueueLease> {
+    pub fn push(&mut self, waker: Waker) -> Option<WakerQueueLease> {
         debug_assert!(self.size <= N);
 
         if (self.size == N) {
@@ -48,7 +49,7 @@ impl<const N: usize> DeviceWakerQueue<N> {
 
         self.size += 1;
 
-        Some(DeviceWakerQueueLease(insert_index))
+        Some(WakerQueueLease(insert_index))
     }
 
     /// Gets the next non-canceled waker and marks it as ready.
@@ -77,12 +78,8 @@ impl<const N: usize> DeviceWakerQueue<N> {
         None
     }
 
-    /// Updates the held lease if it is still waiting.  
-    pub fn try_update(
-        &mut self,
-        lease: DeviceWakerQueueLease,
-        waker: &Waker,
-    ) -> Option<DeviceWakerQueueLease> {
+    /// Updates the held lease if it is still waiting.
+    pub fn try_update(&mut self, lease: WakerQueueLease, waker: &Waker) -> Option<WakerQueueLease> {
         let waker_slot = &mut self.waker_slots[lease.0];
 
         match waker_slot {
@@ -102,7 +99,7 @@ impl<const N: usize> DeviceWakerQueue<N> {
         }
     }
 
-    pub fn try_cancel(&mut self, lease: DeviceWakerQueueLease) -> bool {
+    pub fn try_cancel(&mut self, lease: WakerQueueLease) -> bool {
         let waker_slot = &mut self.waker_slots[lease.0];
 
         match waker_slot {

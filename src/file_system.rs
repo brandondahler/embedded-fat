@@ -10,7 +10,6 @@ pub use error::*;
 
 use crate::allocation_table::AllocationTable;
 use crate::boot_sector::BiosParameterBlock;
-use crate::device::Device;
 use crate::directory::{Directory, DirectoryFile, DirectoryTable};
 use crate::directory_entry::DirectoryEntryIterationError;
 use crate::directory_item::DirectoryItem;
@@ -22,15 +21,16 @@ use embedded_io::{ErrorType, SeekFrom};
 #[cfg(feature = "sync")]
 use embedded_io::{Read, Seek, Write};
 
+use crate::queued_resource::QueuedResource;
 #[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
-/// An instance of an either FAT12, FAT16, or FAT32 filesystem stored on the configured [Device].
+/// An instance of an either FAT12, FAT16, or FAT32 filesystem stored on the configured stream.
 /// Short names are encoded and decoded with the provided [CodePageEncoder].
 ///
-/// Read and write operation capabilities are available based on the underlying [Device]'s
-/// capabilities.  Synchronous operations require [SyncDevice]s while asynchronous operations
-/// require [AsyncDevice]s.
+/// Read and write operation capabilities are available based on the underlying stream's
+/// capabilities.  Synchronous operations require embedded-io traits while asynchronous operations
+/// require embedded-io-async traits.
 ///
 /// Using multiple [FileSystem] instances on the same physical storage medium may result in read
 /// and/or filesystem corruption.
@@ -41,7 +41,7 @@ where
     CPE: CodePageEncoder,
     IDE: Fn(DirectoryItemIterationError<S::Error>),
 {
-    device: Device<S, N>,
+    device: QueuedResource<S, N>,
     code_page_encoder: CPE,
 
     allocation_table: AllocationTable,
@@ -136,7 +136,7 @@ where
 {
     /// Loads an existing FAT filesystem from the provided `device`.
     pub fn new(
-        mut device: Device<S, N>,
+        mut device: QueuedResource<S, N>,
         code_page_encoder: CPE,
         on_invalid_directory_entry: IDE,
     ) -> Result<Self, FileSystemError<S::Error>> {
@@ -144,7 +144,7 @@ where
 
         {
             let mut stream = device
-                .acquire_stream()
+                .try_acquire_resource()
                 .map_err(|_| FileSystemError::DeviceBusy)?;
 
             stream.seek(SeekFrom::Start(0))?;
@@ -217,7 +217,7 @@ where
 {
     /// Loads an existing FAT filesystem from the provided `device`.
     pub async fn new_async(
-        device: Device<S, N>,
+        device: QueuedResource<S, N>,
         code_page_encoder: CPE,
         on_invalid_directory_entry: IDE,
     ) -> Result<Self, FileSystemError<S::Error>> {
@@ -225,7 +225,7 @@ where
 
         {
             let mut stream = device
-                .acquire_stream_async()
+                .acquire_resource_async()
                 .await
                 .map_err(|_| FileSystemError::DeviceBusy)?;
 
