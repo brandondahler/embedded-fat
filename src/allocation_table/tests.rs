@@ -7,19 +7,6 @@ use core::fmt::{Debug, Display};
 use embedded_io::ErrorType;
 use strum::IntoEnumIterator;
 
-mod kind {
-    use super::*;
-
-    #[test]
-    fn returns_construction_value() {
-        for kind in AllocationTableKind::iter() {
-            let allocation_table = AllocationTable::new(kind, 0, 10);
-
-            assert_eq!(allocation_table.kind(), kind);
-        }
-    }
-}
-
 mod read_entry {
     use super::*;
 

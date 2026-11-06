@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests;
 
+use crate::device::Device;
 use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, DirectoryEntry, DirectoryEntryIterationError};
 use crate::queued_resource::QueuedResource;
 use core::cell::RefCell;
@@ -17,7 +18,7 @@ pub struct DirectoryTableEntryIterator<'a, S, const N: usize>
 where
     S: ErrorType,
 {
-    device: &'a QueuedResource<S, N>,
+    device: &'a QueuedResource<Device<S>, N>,
 
     start_address: u64,
     entry_count: u16,
@@ -29,7 +30,11 @@ impl<'a, S, const N: usize> DirectoryTableEntryIterator<'a, S, N>
 where
     S: ErrorType,
 {
-    pub fn new(device: &'a QueuedResource<S, N>, start_address: u64, entry_count: u16) -> Self {
+    pub fn new(
+        device: &'a QueuedResource<Device<S>, N>,
+        start_address: u64,
+        entry_count: u16,
+    ) -> Self {
         Self {
             device,
 
@@ -76,10 +81,10 @@ where
         let mut directory_entry_bytes = [0; DIRECTORY_ENTRY_SIZE];
 
         {
-            let mut stream = self.device.try_acquire_resource()?;
+            let mut device_lease = self.device.try_acquire_resource()?;
 
-            stream.seek(SeekFrom::Start(current_address))?;
-            stream.read_exact(&mut directory_entry_bytes)?;
+            device_lease.stream.seek(SeekFrom::Start(current_address))?;
+            device_lease.stream.read_exact(&mut directory_entry_bytes)?;
         }
 
         let directory_entry = DirectoryEntry::from_bytes(&directory_entry_bytes)?;
@@ -116,10 +121,16 @@ where
         let mut directory_entry_bytes = [0; DIRECTORY_ENTRY_SIZE];
 
         {
-            let mut stream = self.device.acquire_resource_async().await?;
+            let mut device_lease = self.device.acquire_resource_async().await?;
 
-            stream.seek(SeekFrom::Start(current_address)).await?;
-            stream.read_exact(&mut directory_entry_bytes).await?;
+            device_lease
+                .stream
+                .seek(SeekFrom::Start(current_address))
+                .await?;
+            device_lease
+                .stream
+                .read_exact(&mut directory_entry_bytes)
+                .await?;
         }
 
         let directory_entry = DirectoryEntry::from_bytes(&directory_entry_bytes)?;

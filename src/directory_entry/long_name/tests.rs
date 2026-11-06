@@ -9,7 +9,7 @@ mod from_bytes {
     fn parses_entry_correctly() {
         let mut test_data = TestData::valid();
 
-        let entry = LongNameDirectoryEntry::from_bytes(&mut test_data.bytes).unwrap();
+        let entry = LongNameDirectoryEntry::from_bytes(&test_data.bytes).unwrap();
 
         assert_eq!(
             entry.is_last_entry(),
@@ -38,7 +38,7 @@ mod from_bytes {
         let mut data = TestData::valid().bytes;
         data[0] = 0x00;
 
-        let entry = LongNameDirectoryEntry::from_bytes(&mut data).unwrap_err();
+        let entry = LongNameDirectoryEntry::from_bytes(&data).unwrap_err();
 
         assert_matches!(entry, LongNameDirectoryEntryError::EntryNumberInvalid);
     }
@@ -48,7 +48,7 @@ mod from_bytes {
         let mut data = TestData::valid().bytes;
         data[0] = 0x3F;
 
-        let error = LongNameDirectoryEntry::from_bytes(&mut data).unwrap_err();
+        let error = LongNameDirectoryEntry::from_bytes(&data).unwrap_err();
 
         assert_matches!(error, LongNameDirectoryEntryError::EntryNumberInvalid);
     }

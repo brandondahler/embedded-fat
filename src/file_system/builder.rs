@@ -97,7 +97,7 @@ where
     /// Creates the [FileSystem] instance based on the builder's current configuration.
     pub fn build(self) -> Result<FileSystem<S, N, CPE, IDE>, FileSystemError<S::Error>> {
         FileSystem::new(
-            QueuedResource::new(self.stream),
+            self.stream,
             self.code_page_encoder,
             self.on_invalid_directory_entry,
         )
@@ -116,7 +116,7 @@ where
         self,
     ) -> Result<FileSystem<S, N, CPE, IDE>, FileSystemError<S::Error>> {
         FileSystem::new_async(
-            QueuedResource::new(self.stream),
+            self.stream,
             self.code_page_encoder,
             self.on_invalid_directory_entry,
         )

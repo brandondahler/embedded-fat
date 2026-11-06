@@ -6,23 +6,6 @@ macro_rules! ensure {
     };
 }
 
-/// Propagates errors from results as an early-returning `Some` value.  Similar to `?`, but that
-/// syntax doesn't work for `Option<Result<V, E>>`
-macro_rules! propagate_iteration_error {
-    ($result_expression: expr) => {
-        match $result_expression {
-            Result::Ok(value) => value,
-            Result::Err(error) => return Some(Err(error.into())),
-        }
-    };
-}
-
-macro_rules! propagate_device_iteration_errors {
-    ($result_expression: expr) => {
-        propagate_iteration_error!(propagate_iteration_error!($result_expression))
-    };
-}
-
 // NOTE: The tests need the macros so this mod declaration must be after them
 #[cfg(test)]
 mod tests;

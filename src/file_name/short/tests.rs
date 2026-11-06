@@ -147,11 +147,7 @@ mod from_str {
     #[test]
     fn invalid_name_encoded_byte_invalid_returns_err() {
         for character_index in 0..INVALID_CHARACTERS.len() {
-            let character_byte = INVALID_CHARACTERS
-                .chars()
-                .skip(character_index)
-                .next()
-                .unwrap() as u8;
+            let character_byte = INVALID_CHARACTERS.chars().nth(character_index).unwrap() as u8;
 
             let code_page_encoder = ScriptedCodePageEncoder(|character| {
                 if character == 'X' {
@@ -228,11 +224,7 @@ mod from_str {
     #[test]
     fn invalid_extension_encoded_byte_invalid_returns_err() {
         for character_index in 0..INVALID_CHARACTERS.len() {
-            let character_byte = INVALID_CHARACTERS
-                .chars()
-                .skip(character_index)
-                .next()
-                .unwrap() as u8;
+            let character_byte = INVALID_CHARACTERS.chars().nth(character_index).unwrap() as u8;
 
             let code_page_encoder = ScriptedCodePageEncoder(|character| {
                 if character == 'X' {

@@ -10,18 +10,18 @@ pub use error::*;
 
 use crate::allocation_table::AllocationTable;
 use crate::boot_sector::BiosParameterBlock;
+use crate::device::Device;
 use crate::directory::{Directory, DirectoryFile, DirectoryTable};
 use crate::directory_entry::DirectoryEntryIterationError;
 use crate::directory_item::DirectoryItem;
+use crate::queued_resource::QueuedResource;
 use crate::{AllocationTableKind, CodePageEncoder, DirectoryItemIterationError, File};
 use core::error::Error;
-use core::marker::PhantomData;
 use embedded_io::{ErrorType, SeekFrom};
 
 #[cfg(feature = "sync")]
 use embedded_io::{Read, Seek, Write};
 
-use crate::queued_resource::QueuedResource;
 #[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
@@ -41,10 +41,9 @@ where
     CPE: CodePageEncoder,
     IDE: Fn(DirectoryItemIterationError<S::Error>),
 {
-    device: QueuedResource<S, N>,
+    device: QueuedResource<Device<S>, N>,
     code_page_encoder: CPE,
 
-    allocation_table: AllocationTable,
     bios_parameter_block: BiosParameterBlock,
 
     on_invalid_directory_entry: IDE,
@@ -56,11 +55,6 @@ where
     CPE: CodePageEncoder,
     IDE: Fn(DirectoryItemIterationError<S::Error>),
 {
-    /// The underlying type of FAT filesystem that was loaded
-    pub fn allocation_table_kind(&self) -> AllocationTableKind {
-        self.allocation_table.kind()
-    }
-
     fn root_directory(&self) -> Directory<'_, S, N> {
         match self
             .bios_parameter_block
@@ -68,7 +62,6 @@ where
         {
             Some(root_directory_file_cluster_number) => DirectoryFile::new(
                 &self.device,
-                &self.allocation_table,
                 self.bios_parameter_block.data_region_base_address(),
                 self.bios_parameter_block.bytes_per_cluster(),
                 root_directory_file_cluster_number,
@@ -87,7 +80,6 @@ where
         if item.is_directory() {
             Some(DirectoryFile::new(
                 &self.device,
-                &self.allocation_table,
                 self.bios_parameter_block.data_region_base_address(),
                 self.bios_parameter_block.bytes_per_cluster(),
                 item.first_cluster_number(),
@@ -101,7 +93,6 @@ where
         if item.is_file() {
             Some(File::new(
                 &self.device,
-                &self.allocation_table,
                 self.bios_parameter_block.data_region_base_address(),
                 self.bios_parameter_block.bytes_per_cluster(),
                 item.first_cluster_number(),
@@ -136,18 +127,14 @@ where
 {
     /// Loads an existing FAT filesystem from the provided `device`.
     pub fn new(
-        mut device: QueuedResource<S, N>,
+        mut stream: S,
         code_page_encoder: CPE,
         on_invalid_directory_entry: IDE,
     ) -> Result<Self, FileSystemError<S::Error>> {
         let mut boot_sector_bytes = [0; 512];
 
-        {
-            let mut stream = device.try_acquire_resource()?;
-
-            stream.seek(SeekFrom::Start(0))?;
-            stream.read_exact(&mut boot_sector_bytes)?;
-        }
+        stream.seek(SeekFrom::Start(0))?;
+        stream.read_exact(&mut boot_sector_bytes)?;
 
         Self::validate_boot_sector_signature(&boot_sector_bytes)?;
 
@@ -159,10 +146,12 @@ where
         );
 
         Ok(Self {
-            device,
+            device: QueuedResource::new(Device {
+                stream,
+                allocation_table,
+            }),
             code_page_encoder,
 
-            allocation_table,
             bios_parameter_block,
 
             on_invalid_directory_entry,
@@ -215,18 +204,14 @@ where
 {
     /// Loads an existing FAT filesystem from the provided `device`.
     pub async fn new_async(
-        device: QueuedResource<S, N>,
+        mut stream: S,
         code_page_encoder: CPE,
         on_invalid_directory_entry: IDE,
     ) -> Result<Self, FileSystemError<S::Error>> {
         let mut boot_sector_bytes = [0; 512];
 
-        {
-            let mut stream = device.acquire_resource_async().await?;
-
-            stream.seek(SeekFrom::Start(0)).await?;
-            stream.read_exact(&mut boot_sector_bytes).await?;
-        }
+        stream.seek(SeekFrom::Start(0)).await?;
+        stream.read_exact(&mut boot_sector_bytes).await?;
 
         Self::validate_boot_sector_signature(&boot_sector_bytes)?;
 
@@ -238,10 +223,12 @@ where
         );
 
         Ok(Self {
-            device,
+            device: QueuedResource::new(Device {
+                stream,
+                allocation_table,
+            }),
             code_page_encoder,
 
-            allocation_table,
             bios_parameter_block,
 
             on_invalid_directory_entry,

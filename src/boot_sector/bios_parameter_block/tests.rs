@@ -486,10 +486,7 @@ mod allocation_table_mirroring_enabled {
 
             let bios_parameter_block = BiosParameterBlock::from_boot_sector(&bytes).unwrap();
 
-            assert_eq!(
-                bios_parameter_block.allocation_table_mirroring_enabled(),
-                true
-            );
+            assert!(bios_parameter_block.allocation_table_mirroring_enabled());
         }
     }
 
@@ -503,10 +500,7 @@ mod allocation_table_mirroring_enabled {
 
         let bios_parameter_block = BiosParameterBlock::from_boot_sector(&bytes).unwrap();
 
-        assert_eq!(
-            bios_parameter_block.allocation_table_mirroring_enabled(),
-            false
-        );
+        assert!(!bios_parameter_block.allocation_table_mirroring_enabled(),);
     }
 }
 

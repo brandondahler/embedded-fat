@@ -1,36 +1,31 @@
 mod common;
 
 use crate::common::std_file::StdFile;
-use embedded_fat::{AllocationTableKind, FileSystemBuilder};
+use embedded_fat::FileSystemBuilder;
 use embedded_io::Read;
 use std::fs::File;
 
 #[test]
 fn fat12() {
-    verify_disk("fat12.img", AllocationTableKind::Fat12);
+    verify_disk("fat12.img");
 }
 
 #[test]
 fn fat16() {
-    verify_disk("fat16.img", AllocationTableKind::Fat16);
+    verify_disk("fat16.img");
 }
 
 #[test]
 fn fat32() {
-    verify_disk("fat32.img", AllocationTableKind::Fat32);
+    verify_disk("fat32.img");
 }
 
-fn verify_disk(file_name: &str, expected_allocation_table_kind: AllocationTableKind) {
+fn verify_disk(file_name: &str) {
     let file_system = FileSystemBuilder::from_stream(StdFile::new(
         File::open(String::from("disks/") + file_name).unwrap(),
     ))
     .build()
     .expect("Opening disk works");
-
-    assert_eq!(
-        file_system.allocation_table_kind(),
-        expected_allocation_table_kind
-    );
 
     {
         let mut file = file_system

@@ -107,7 +107,7 @@ fn read_le_u16_slice_copy(bytes: &[u8], offset: usize) -> u16 {
 
 fn read_le_u16_slice_copy_split(bytes: &[u8], offset: usize) -> u16 {
     let mut value_bytes = [0; 2];
-    value_bytes.copy_from_slice(&bytes.split_at(offset).1.split_at(2).0);
+    value_bytes.copy_from_slice(bytes.split_at(offset).1.split_at(2).0);
 
     u16::from_le_bytes(value_bytes)
 }
@@ -131,7 +131,7 @@ fn read_le_u32_slice_copy(bytes: &[u8], offset: usize) -> u32 {
 
 fn read_le_u32_slice_copy_split(bytes: &[u8], offset: usize) -> u32 {
     let mut value_bytes = [0; 4];
-    value_bytes.copy_from_slice(&bytes.split_at(offset).1.split_at(4).0);
+    value_bytes.copy_from_slice(bytes.split_at(offset).1.split_at(4).0);
 
     u32::from_le_bytes(value_bytes)
 }

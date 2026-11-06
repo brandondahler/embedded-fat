@@ -50,7 +50,7 @@ mod from_str {
             let mut invalid_character_buffer = [0; 4];
             let input = invalid_character.encode_utf8(&mut invalid_character_buffer);
 
-            let result = LongFileName::from_str(&input).unwrap_err();
+            let result = LongFileName::from_str(input).unwrap_err();
 
             assert_matches!(
                 result,

@@ -6,6 +6,7 @@ mod tests;
 pub use error::*;
 
 use crate::allocation_table::{AllocationTable, AllocationTableEntry};
+use crate::device::Device;
 use crate::queued_resource::QueuedResource;
 use core::cell::RefCell;
 use core::cmp::min;
@@ -14,7 +15,6 @@ use embedded_io::{ErrorType, SeekFrom};
 
 #[cfg(feature = "sync")]
 use embedded_io::{Read, Seek, Write};
-
 #[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
@@ -23,8 +23,7 @@ pub struct File<'a, S, const N: usize>
 where
     S: ErrorType,
 {
-    device: &'a QueuedResource<S, N>,
-    allocation_table: &'a AllocationTable,
+    device: &'a QueuedResource<Device<S>, N>,
 
     data_region_base_address: u64,
     bytes_per_cluster: u32,
@@ -43,8 +42,7 @@ where
     S: ErrorType,
 {
     pub fn new(
-        device: &'a QueuedResource<S, N>,
-        allocation_table: &'a AllocationTable,
+        device: &'a QueuedResource<Device<S>, N>,
         data_region_base_address: u64,
         bytes_per_cluster: u32,
         first_cluster_number: u32,
@@ -52,7 +50,6 @@ where
     ) -> Self {
         Self {
             device,
-            allocation_table,
 
             data_region_base_address,
             bytes_per_cluster,
@@ -129,10 +126,12 @@ where
         }
 
         let actual_read_size = {
-            let mut stream = self.device.try_acquire_resource()?;
+            let mut device_lease = self.device.try_acquire_resource()?;
 
-            stream.seek(SeekFrom::Start(self.current_address()))?;
-            stream.read(&mut buf[0..target_read_size])?
+            device_lease
+                .stream
+                .seek(SeekFrom::Start(self.current_address()))?;
+            device_lease.stream.read(&mut buf[0..target_read_size])?
         };
 
         self.seek(SeekFrom::Current(actual_read_size as i64))?;
@@ -154,10 +153,16 @@ where
         }
 
         let actual_read_size = {
-            let mut stream = self.device.acquire_resource_async().await?;
+            let mut device_lease = self.device.acquire_resource_async().await?;
 
-            stream.seek(SeekFrom::Start(self.current_address())).await?;
-            stream.read(&mut buf[0..target_read_size]).await?
+            device_lease
+                .stream
+                .seek(SeekFrom::Start(self.current_address()))
+                .await?;
+            device_lease
+                .stream
+                .read(&mut buf[0..target_read_size])
+                .await?
         };
 
         self.seek(SeekFrom::Current(actual_read_size as i64))
@@ -194,14 +199,15 @@ where
             }
 
             {
-                let mut stream = self.device.try_acquire_resource()?;
+                let mut device_lease = self.device.try_acquire_resource()?;
+                let Device {
+                    stream,
+                    allocation_table,
+                } = device_lease.deref_mut();
 
                 // Navigate forward until we get to the correct cluster or reach EOF
                 while new_cluster_offset > self.bytes_per_cluster as i64 {
-                    match self
-                        .allocation_table
-                        .read_entry(&mut *stream, new_cluster_number)?
-                    {
+                    match allocation_table.read_entry(stream, new_cluster_number)? {
                         AllocationTableEntry::NextClusterNumber(next_cluster_number) => {
                             new_cluster_number = next_cluster_number;
                             new_cluster_offset -= self.bytes_per_cluster as i64;
@@ -255,13 +261,16 @@ where
             }
 
             {
-                let mut stream = self.device.acquire_resource_async().await?;
+                let mut device_lease = self.device.acquire_resource_async().await?;
+                let Device {
+                    stream,
+                    allocation_table,
+                } = device_lease.deref_mut();
 
                 // Navigate forward until we get to the correct cluster or reach EOF
                 while new_cluster_offset >= self.bytes_per_cluster as i64 {
-                    match self
-                        .allocation_table
-                        .read_entry_async(&mut *stream, new_cluster_number)
+                    match allocation_table
+                        .read_entry_async(stream, new_cluster_number)
                         .await?
                     {
                         AllocationTableEntry::NextClusterNumber(next_cluster_number) => {
@@ -301,9 +310,9 @@ where
 
     fn flush(&mut self) -> Result<(), Self::Error> {
         {
-            let mut stream = self.device.try_acquire_resource()?;
+            let mut device_lease = self.device.try_acquire_resource()?;
 
-            stream.flush()?;
+            device_lease.stream.flush()?;
         }
 
         Ok(())
@@ -321,9 +330,9 @@ where
 
     async fn flush(&mut self) -> Result<(), Self::Error> {
         {
-            let mut stream = self.device.acquire_resource_async().await?;
+            let mut device_lease = self.device.acquire_resource_async().await?;
 
-            stream.flush().await?;
+            device_lease.stream.flush().await?;
         }
 
         Ok(())

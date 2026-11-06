@@ -52,10 +52,6 @@ impl AllocationTable {
         }
     }
 
-    pub(crate) fn kind(&self) -> AllocationTableKind {
-        self.kind
-    }
-
     #[cfg(feature = "sync")]
     pub fn read_entry<S>(
         &self,
@@ -197,6 +193,11 @@ impl AllocationTable {
                 stream.write_all(&bytes)?;
             }
         };
+
+        if (matches!(allocation_table_entry, AllocationTableEntry::Free)) {
+            self.free_cluster_scan_start_number =
+                min(self.free_cluster_scan_start_number, cluster_number);
+        }
 
         Ok(())
     }

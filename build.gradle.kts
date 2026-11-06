@@ -22,7 +22,7 @@ tasks {
     val cargoClippy = register("cargoClippy", Exec::class) {
         mustRunAfter(cargoFormat)
 
-        commandLine("cargo", "clippy")
+        commandLine("cargo", "clippy", "--all-targets")
     }
 
     val cargoBuild = register("cargoBuild", Exec::class) {

@@ -14,21 +14,21 @@ use crate::mock::{CoreError, IoError};
 #[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
+type ScriptedPeekResult<S> =
+    Result<Option<DirectoryEntry>, DirectoryEntryIterationError<<S as ErrorType>::Error>>;
+type ScriptedAdvanceResult<S> = Result<bool, DirectoryEntryIterationError<<S as ErrorType>::Error>>;
+type ScriptedNextResult<S> =
+    Result<Option<DirectoryEntry>, DirectoryEntryIterationError<<S as ErrorType>::Error>>;
+
 pub struct ScriptedDirectoryEntryIterator<'a, S>
 where
     S: ErrorType,
 {
     call_index: usize,
 
-    peek: Rc<
-        dyn Fn(usize) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>>
-            + 'a,
-    >,
-    advance: Rc<dyn Fn(usize) -> Result<bool, DirectoryEntryIterationError<S::Error>> + 'a>,
-    next: Rc<
-        dyn Fn(usize) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>>
-            + 'a,
-    >,
+    peek: Rc<dyn Fn(usize) -> ScriptedPeekResult<S> + 'a>,
+    advance: Rc<dyn Fn(usize) -> ScriptedAdvanceResult<S> + 'a>,
+    next: Rc<dyn Fn(usize) -> ScriptedNextResult<S> + 'a>,
 }
 
 impl<'a, S> ScriptedDirectoryEntryIterator<'a, S>
@@ -47,8 +47,7 @@ where
 
     pub fn with_peek<FP>(mut self, peek: FP) -> Self
     where
-        FP: Fn(usize) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>>
-            + 'a,
+        FP: Fn(usize) -> ScriptedPeekResult<S> + 'a,
     {
         self.peek = Rc::new(peek);
         self
@@ -56,7 +55,7 @@ where
 
     pub fn with_advance<FA>(mut self, advance: FA) -> Self
     where
-        FA: Fn(usize) -> Result<bool, DirectoryEntryIterationError<S::Error>> + 'a,
+        FA: Fn(usize) -> ScriptedAdvanceResult<S> + 'a,
     {
         self.advance = Rc::new(advance);
         self
@@ -64,8 +63,7 @@ where
 
     pub fn with_next<FN>(mut self, next: FN) -> Self
     where
-        FN: Fn(usize) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>>
-            + 'a,
+        FN: Fn(usize) -> ScriptedNextResult<S> + 'a,
     {
         self.next = Rc::new(next);
         self
@@ -103,20 +101,18 @@ impl<S> ScriptedDirectoryEntryIterator<'_, S>
 where
     S: ErrorType,
 {
-    pub fn peek(&self) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>> {
+    pub fn peek(&self) -> ScriptedPeekResult<S> {
         (self.peek)(self.call_index)
     }
 
-    pub fn advance(&mut self) -> Result<bool, DirectoryEntryIterationError<S::Error>> {
+    pub fn advance(&mut self) -> ScriptedAdvanceResult<S> {
         let current_call_index = self.call_index;
         self.call_index += 1;
 
         (self.advance)(current_call_index)
     }
 
-    pub fn next(
-        &mut self,
-    ) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>> {
+    pub fn next(&mut self) -> ScriptedNextResult<S> {
         let current_call_index = self.call_index;
         self.call_index += 1;
 
@@ -129,22 +125,18 @@ impl<S> ScriptedDirectoryEntryIterator<'_, S>
 where
     S: ErrorType,
 {
-    pub async fn peek_async(
-        &self,
-    ) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>> {
+    pub async fn peek_async(&self) -> ScriptedPeekResult<S> {
         (self.peek)(self.call_index)
     }
 
-    pub async fn advance_async(&mut self) -> Result<bool, DirectoryEntryIterationError<S::Error>> {
+    pub async fn advance_async(&mut self) -> ScriptedAdvanceResult<S> {
         let current_call_index = self.call_index;
         self.call_index += 1;
 
         (self.advance)(current_call_index)
     }
 
-    pub async fn next_async(
-        &mut self,
-    ) -> Result<Option<DirectoryEntry>, DirectoryEntryIterationError<S::Error>> {
+    pub async fn next_async(&mut self) -> ScriptedNextResult<S> {
         let current_call_index = self.call_index;
         self.call_index += 1;
 

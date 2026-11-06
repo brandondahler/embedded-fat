@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::AllocationTableKind;
+use crate::allocation_table::AllocationTable;
 use crate::directory_entry::FreeDirectoryEntry;
 use crate::mock::{DataStream, ErroringStream, ErroringStreamScenarios, IoError, VoidStream};
 use alloc::vec;
@@ -11,30 +13,39 @@ mod advance {
 
     #[test]
     fn next_entry_exists_returns_true() {
-        let device = QueuedResource::<_, 0>::new(VoidStream::new());
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: VoidStream::new(),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
         let mut iterator = DirectoryTableEntryIterator::new(&device, 0, 2);
 
         let result = iterator.advance();
 
-        assert_eq!(result, true, "True should be returned");
+        assert!(result, "True should be returned");
     }
 
     #[test]
     fn no_next_entry_returns_false() {
-        let device = QueuedResource::<_, 0>::new(VoidStream::new());
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: VoidStream::new(),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
         let mut iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
         let result = iterator.advance();
-        assert_eq!(result, false, "False should be returned");
+        assert!(!result, "False should be returned");
     }
 
     #[test]
     fn no_current_entry_returns_false() {
-        let device = QueuedResource::<_, 0>::new(VoidStream::new());
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: VoidStream::new(),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
         let mut iterator = DirectoryTableEntryIterator::new(&device, 0, 0);
 
         let result = iterator.advance();
-        assert_eq!(result, false, "False should be returned");
+        assert!(!result, "False should be returned");
     }
 }
 
@@ -101,11 +112,14 @@ mod peek {
 
     #[test]
     fn seek_err_propagated() {
-        let device = QueuedResource::<_, 0>::new(ErroringStream::new(
-            VoidStream::new(),
-            IoError::default(),
-            ErroringStreamScenarios::SEEK,
-        ));
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::SEEK,
+            ),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
 
         let iterator = DirectoryTableEntryIterator::new(&device, 1, 1);
 
@@ -116,11 +130,14 @@ mod peek {
 
     #[test]
     fn read_err_propagated() {
-        let device = QueuedResource::<_, 0>::new(ErroringStream::new(
-            VoidStream::new(),
-            IoError::default(),
-            ErroringStreamScenarios::READ,
-        ));
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::READ,
+            ),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
 
         let iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -131,7 +148,10 @@ mod peek {
 
     #[test]
     fn stream_end_reached_error_propagated() {
-        let device = QueuedResource::<_, 0>::new(DataStream::from_bytes([]));
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: DataStream::from_bytes([]),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
 
         let iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -142,7 +162,10 @@ mod peek {
 
     #[test]
     fn device_busy_error_propagated() {
-        let device = QueuedResource::<_, 0>::new(VoidStream::new());
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: VoidStream::new(),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
         let _device_stream = device.try_acquire_resource().unwrap();
 
         let iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
@@ -157,7 +180,10 @@ mod peek {
         let mut data = [0; DIRECTORY_ENTRY_SIZE];
         data[0] = 0x20;
 
-        let device = QueuedResource::<_, 0>::new(DataStream::from_bytes(data));
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: DataStream::from_bytes(data),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
 
         let iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -207,16 +233,19 @@ mod next {
 
         let result = iterator.next().unwrap();
 
-        assert!(matches!(result, None), "None should be returned");
+        assert_matches!(result, None, "None should be returned");
     }
 
     #[test]
     fn seek_err_propagated() {
-        let device = QueuedResource::<_, 0>::new(ErroringStream::new(
-            VoidStream::new(),
-            IoError::default(),
-            ErroringStreamScenarios::SEEK,
-        ));
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::SEEK,
+            ),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
 
         let mut iterator = DirectoryTableEntryIterator::new(&device, 1, 1);
 
@@ -227,11 +256,14 @@ mod next {
 
     #[test]
     fn read_err_propagated() {
-        let device = QueuedResource::<_, 0>::new(ErroringStream::new(
-            VoidStream::new(),
-            IoError::default(),
-            ErroringStreamScenarios::READ,
-        ));
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::READ,
+            ),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
 
         let mut iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -242,7 +274,10 @@ mod next {
 
     #[test]
     fn stream_end_reached_error_propagated() {
-        let device = QueuedResource::<_, 0>::new(DataStream::from_bytes([]));
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: DataStream::from_bytes([]),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
 
         let mut iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -253,7 +288,10 @@ mod next {
 
     #[test]
     fn device_busy_error_propagated() {
-        let device = QueuedResource::<_, 0>::new(VoidStream::new());
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: VoidStream::new(),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
         let _device_stream = device.try_acquire_resource().unwrap();
 
         let mut iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
@@ -268,7 +306,10 @@ mod next {
         let mut data = [0; DIRECTORY_ENTRY_SIZE];
         data[0] = 0x20;
 
-        let device = QueuedResource::<_, 0>::new(DataStream::from_bytes(data));
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: DataStream::from_bytes(data),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
 
         let mut iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -343,11 +384,14 @@ mod peek_async {
 
     #[tokio::test]
     async fn seek_err_propagated() {
-        let device = QueuedResource::<_, 0>::new(ErroringStream::new(
-            VoidStream::new(),
-            IoError::default(),
-            ErroringStreamScenarios::SEEK,
-        ));
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::SEEK,
+            ),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
 
         let iterator = DirectoryTableEntryIterator::new(&device, 1, 1);
 
@@ -358,11 +402,14 @@ mod peek_async {
 
     #[tokio::test]
     async fn read_err_propagated() {
-        let device = QueuedResource::<_, 0>::new(ErroringStream::new(
-            VoidStream::new(),
-            IoError::default(),
-            ErroringStreamScenarios::READ,
-        ));
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::READ,
+            ),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
 
         let iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -373,7 +420,10 @@ mod peek_async {
 
     #[tokio::test]
     async fn stream_end_reached_error_propagated() {
-        let device = QueuedResource::<_, 0>::new(DataStream::from_bytes([]));
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: DataStream::from_bytes([]),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
 
         let iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -384,7 +434,10 @@ mod peek_async {
 
     #[tokio::test]
     async fn device_busy_error_propagated() {
-        let device = QueuedResource::<_, 0>::new(VoidStream::new());
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: VoidStream::new(),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
         let _device_stream = device.try_acquire_resource().unwrap();
 
         let iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
@@ -399,7 +452,10 @@ mod peek_async {
         let mut data = [0; DIRECTORY_ENTRY_SIZE];
         data[0] = 0x20;
 
-        let device = QueuedResource::<_, 0>::new(DataStream::from_bytes(data));
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: DataStream::from_bytes(data),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
 
         let iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -449,16 +505,19 @@ mod next_async {
 
         let result = iterator.next_async().await.unwrap();
 
-        assert!(matches!(result, None), "None should be returned");
+        assert_matches!(result, None, "None should be returned");
     }
 
     #[tokio::test]
     async fn seek_err_propagated() {
-        let device = QueuedResource::<_, 0>::new(ErroringStream::new(
-            VoidStream::new(),
-            IoError::default(),
-            ErroringStreamScenarios::SEEK,
-        ));
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::SEEK,
+            ),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
 
         let mut iterator = DirectoryTableEntryIterator::new(&device, 1, 1);
 
@@ -469,11 +528,14 @@ mod next_async {
 
     #[tokio::test]
     async fn read_err_propagated() {
-        let device = QueuedResource::<_, 0>::new(ErroringStream::new(
-            VoidStream::new(),
-            IoError::default(),
-            ErroringStreamScenarios::READ,
-        ));
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: ErroringStream::new(
+                VoidStream::new(),
+                IoError::default(),
+                ErroringStreamScenarios::READ,
+            ),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
 
         let mut iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -484,7 +546,10 @@ mod next_async {
 
     #[tokio::test]
     async fn stream_end_reached_error_propagated() {
-        let device = QueuedResource::<_, 0>::new(DataStream::from_bytes([]));
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: DataStream::from_bytes([]),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
 
         let mut iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -495,7 +560,10 @@ mod next_async {
 
     #[tokio::test]
     async fn device_busy_error_propagated() {
-        let device = QueuedResource::<_, 0>::new(VoidStream::new());
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: VoidStream::new(),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
         let _device_stream = device.try_acquire_resource().unwrap();
 
         let mut iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
@@ -510,7 +578,10 @@ mod next_async {
         let mut data = [0; DIRECTORY_ENTRY_SIZE];
         data[0] = 0x20;
 
-        let device = QueuedResource::<_, 0>::new(DataStream::from_bytes(data));
+        let device = QueuedResource::<_, 0>::new(Device {
+            stream: DataStream::from_bytes(data),
+            allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+        });
 
         let mut iterator = DirectoryTableEntryIterator::new(&device, 0, 1);
 
@@ -523,7 +594,7 @@ mod next_async {
 type TestInstanceStream = DataStream<Vec<u8>>;
 
 struct TestInstance {
-    device: QueuedResource<TestInstanceStream, 0>,
+    device: QueuedResource<Device<TestInstanceStream>, 0>,
     entry_count: u16,
 }
 
@@ -540,7 +611,10 @@ impl TestInstance {
         }
 
         Self {
-            device: QueuedResource::new(DataStream::from_bytes(data)),
+            device: QueuedResource::new(Device {
+                stream: DataStream::from_bytes(data),
+                allocation_table: AllocationTable::new(AllocationTableKind::Fat32, 0, 1),
+            }),
             entry_count: entry_count as u16,
         }
     }

@@ -3,12 +3,13 @@ mod tests;
 
 use crate::FileError;
 use crate::allocation_table::{AllocationTable, AllocationTableEntry};
+use crate::device::Device;
 use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, DirectoryEntry, DirectoryEntryIterationError};
 use crate::queued_resource::QueuedResource;
 use core::cell::RefCell;
 use core::ops::DerefMut;
-
 use embedded_io::{ErrorType, SeekFrom};
+
 #[cfg(feature = "sync")]
 use embedded_io::{Read, Seek};
 
@@ -20,8 +21,7 @@ pub struct DirectoryFileEntryIterator<'a, S, const N: usize>
 where
     S: ErrorType,
 {
-    device: &'a QueuedResource<S, N>,
-    allocation_table: &'a AllocationTable,
+    device: &'a QueuedResource<Device<S>, N>,
 
     data_region_base_address: u64,
     bytes_per_cluster: u32,
@@ -35,15 +35,13 @@ where
     S: ErrorType,
 {
     pub fn new(
-        device: &'a QueuedResource<S, N>,
-        allocation_table: &'a AllocationTable,
+        device: &'a QueuedResource<Device<S>, N>,
         data_region_base_address: u64,
         bytes_per_cluster: u32,
         start_cluster_number: u32,
     ) -> Self {
         Self {
             device,
-            allocation_table,
 
             data_region_base_address,
             bytes_per_cluster,
@@ -99,10 +97,10 @@ where
         let mut directory_entry_bytes = [0; DIRECTORY_ENTRY_SIZE];
 
         {
-            let mut stream = self.device.try_acquire_resource()?;
+            let mut device_lease = self.device.try_acquire_resource()?;
 
-            stream.seek(SeekFrom::Start(current_address))?;
-            stream.read_exact(&mut directory_entry_bytes)?;
+            device_lease.stream.seek(SeekFrom::Start(current_address))?;
+            device_lease.stream.read_exact(&mut directory_entry_bytes)?;
         }
 
         let directory_entry = DirectoryEntry::from_bytes(&directory_entry_bytes)?;
@@ -118,11 +116,14 @@ where
         }
 
         {
-            let mut stream = self.device.try_acquire_resource()?;
+            let mut device_lease = self.device.try_acquire_resource()?;
+            let Device {
+                stream,
+                allocation_table,
+            } = device_lease.deref_mut();
 
-            let allocation_table_entry = self
-                .allocation_table
-                .read_entry(&mut *stream, self.current_cluster_number)?;
+            let allocation_table_entry =
+                allocation_table.read_entry(stream, self.current_cluster_number)?;
 
             self.try_advance_cluster(allocation_table_entry)
         }
@@ -157,10 +158,16 @@ where
         let mut directory_entry_bytes = [0; DIRECTORY_ENTRY_SIZE];
 
         {
-            let mut stream = self.device.acquire_resource_async().await?;
+            let mut device_lease = self.device.acquire_resource_async().await?;
 
-            stream.seek(SeekFrom::Start(current_address)).await?;
-            stream.read_exact(&mut directory_entry_bytes).await?;
+            device_lease
+                .stream
+                .seek(SeekFrom::Start(current_address))
+                .await?;
+            device_lease
+                .stream
+                .read_exact(&mut directory_entry_bytes)
+                .await?;
         }
 
         let directory_entry = DirectoryEntry::from_bytes(&directory_entry_bytes)?;
@@ -176,11 +183,14 @@ where
         }
 
         {
-            let mut stream = self.device.acquire_resource_async().await?;
+            let mut device_lease = self.device.acquire_resource_async().await?;
+            let Device {
+                stream,
+                allocation_table,
+            } = device_lease.deref_mut();
 
-            let allocation_table_entry = self
-                .allocation_table
-                .read_entry_async(&mut *stream, self.current_cluster_number)
+            let allocation_table_entry = allocation_table
+                .read_entry_async(stream, self.current_cluster_number)
                 .await?;
 
             self.try_advance_cluster(allocation_table_entry)

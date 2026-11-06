@@ -1,6 +1,7 @@
 use super::*;
 use crate::AllocationTableKind;
 use crate::allocation_table::AllocationTable;
+use crate::device::Device;
 use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, FreeDirectoryEntry};
 use crate::mock::DataStream;
 use crate::queued_resource::QueuedResource;
@@ -65,11 +66,11 @@ mod advance {
 
         let result = test_instance.file_iterator().advance().unwrap();
 
-        assert_eq!(result, false, "False should be returned");
+        assert!(!result, "False should be returned");
 
         let result = test_instance.table_iterator().advance().unwrap();
 
-        assert_eq!(result, false, "False should be returned");
+        assert!(!result, "False should be returned");
     }
 }
 
@@ -115,7 +116,7 @@ mod advance_async {
 
         let result = test_instance.file_iterator().advance_async().await.unwrap();
 
-        assert_eq!(result, false, "False should be returned");
+        assert!(!result, "False should be returned");
 
         let result = test_instance
             .table_iterator()
@@ -123,7 +124,7 @@ mod advance_async {
             .await
             .unwrap();
 
-        assert_eq!(result, false, "False should be returned");
+        assert!(!result, "False should be returned");
     }
 }
 
@@ -163,8 +164,7 @@ mod next_async {
 type TestInstanceStream = DataStream<Vec<u8>>;
 
 struct TestInstance {
-    device: QueuedResource<TestInstanceStream, 0>,
-    allocation_table: AllocationTable,
+    device: QueuedResource<Device<TestInstanceStream>, 0>,
 
     data_region_base_address: u64,
     entry_count: u16,
@@ -181,8 +181,10 @@ impl TestInstance {
         }
 
         Self {
-            device: QueuedResource::new(DataStream::from_bytes(data)),
-            allocation_table: AllocationTable::new(allocation_table_kind, 0, 10),
+            device: QueuedResource::new(Device {
+                stream: DataStream::from_bytes(data),
+                allocation_table: AllocationTable::new(allocation_table_kind, 0, 10),
+            }),
 
             entry_count,
             data_region_base_address: 12,
@@ -192,7 +194,6 @@ impl TestInstance {
     fn file_iterator(&self) -> DirectoryEntryIterator<'_, TestInstanceStream, 0> {
         let iterator = DirectoryFileEntryIterator::new(
             &self.device,
-            &self.allocation_table,
             self.data_region_base_address,
             self.entry_count as u32 * DIRECTORY_ENTRY_SIZE as u32,
             2,
