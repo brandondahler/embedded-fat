@@ -14,8 +14,8 @@ where
     SE: embedded_io::Error,
 {
     AllocationTableEntryTypeUnexpected,
-    DeviceBusy,
     EntryInvalid(DirectoryEntryError),
+    FilesystemBusy,
     StreamEndReached,
     StreamError(SE),
 }
@@ -31,11 +31,11 @@ where
             DirectoryEntryIterationError::AllocationTableEntryTypeUnexpected => {
                 write!(f, "the allocation table entry was an unexpected type")
             }
-            DirectoryEntryIterationError::DeviceBusy => {
-                write!(f, "the device is current busy")
-            }
             DirectoryEntryIterationError::EntryInvalid(e) => {
                 write!(f, "an entry was invalid: {}", e)
+            }
+            DirectoryEntryIterationError::FilesystemBusy => {
+                write!(f, "the filesystem is current busy")
             }
             DirectoryEntryIterationError::StreamEndReached => {
                 write!(f, "stream end was reached when not expected")
@@ -63,7 +63,7 @@ where
     fn from(value: AllocationTableReadError<SE>) -> Self {
         match value {
             AllocationTableReadError::StreamEndReached => Self::StreamEndReached,
-            AllocationTableReadError::StreamError(device_error) => Self::StreamError(device_error),
+            AllocationTableReadError::StreamError(stream_error) => Self::StreamError(stream_error),
         }
     }
 }
@@ -82,7 +82,7 @@ where
     SE: embedded_io::Error,
 {
     fn from(value: QueuedResourceBusyError) -> Self {
-        Self::DeviceBusy
+        Self::FilesystemBusy
     }
 }
 

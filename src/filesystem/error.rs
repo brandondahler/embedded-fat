@@ -8,71 +8,71 @@ use core::fmt::{Display, Formatter};
 use embedded_io::{ErrorType, ReadExactError};
 
 #[derive(Clone, Debug)]
-pub enum FileSystemError<SE>
+pub enum FilesystemError<SE>
 where
     SE: embedded_io::Error,
 {
-    DeviceBusy,
+    FilesystemBusy,
     InvalidBiosParameterBlock(BiosParameterBlockError),
     InvalidFatSignature,
     StreamEndReached,
     StreamError(SE),
 }
 
-impl<SE> Error for FileSystemError<SE> where SE: embedded_io::Error {}
+impl<SE> Error for FilesystemError<SE> where SE: embedded_io::Error {}
 
-impl<SE> Display for FileSystemError<SE>
+impl<SE> Display for FilesystemError<SE>
 where
     SE: embedded_io::Error,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
-            FileSystemError::DeviceBusy => write!(f, "the device is currently busy"),
-            FileSystemError::InvalidBiosParameterBlock(e) => {
+            FilesystemError::FilesystemBusy => write!(f, "the filesystem is currently busy"),
+            FilesystemError::InvalidBiosParameterBlock(e) => {
                 write!(f, "the bios parameter block is invalid: {}", e)
             }
-            FileSystemError::InvalidFatSignature => {
+            FilesystemError::InvalidFatSignature => {
                 write!(
                     f,
                     "the FAT signature at offsets 0xFE and 0xFF were incorrect"
                 )
             }
-            FileSystemError::StreamEndReached => {
+            FilesystemError::StreamEndReached => {
                 write!(f, "stream end was reached when not expected")
             }
-            FileSystemError::StreamError(e) => write!(f, "stream error occurred: {}", e),
+            FilesystemError::StreamError(e) => write!(f, "stream error occurred: {}", e),
         }
     }
 }
 
-impl<SE> From<BiosParameterBlockError> for FileSystemError<SE>
+impl<SE> From<BiosParameterBlockError> for FilesystemError<SE>
 where
     SE: embedded_io::Error,
 {
     fn from(value: BiosParameterBlockError) -> Self {
-        FileSystemError::InvalidBiosParameterBlock(value)
+        FilesystemError::InvalidBiosParameterBlock(value)
     }
 }
 
-impl<SE> From<SE> for FileSystemError<SE>
+impl<SE> From<SE> for FilesystemError<SE>
 where
     SE: embedded_io::Error,
 {
     fn from(value: SE) -> Self {
-        FileSystemError::StreamError(value)
+        FilesystemError::StreamError(value)
     }
 }
 
-impl<SE> From<QueuedResourceBusyError> for FileSystemError<SE>
+impl<SE> From<QueuedResourceBusyError> for FilesystemError<SE>
 where
     SE: embedded_io::Error,
 {
     fn from(value: QueuedResourceBusyError) -> Self {
-        Self::DeviceBusy
+        Self::FilesystemBusy
     }
 }
 
-impl<SE> From<ReadExactError<SE>> for FileSystemError<SE>
+impl<SE> From<ReadExactError<SE>> for FilesystemError<SE>
 where
     SE: embedded_io::Error,
 {

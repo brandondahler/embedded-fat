@@ -1,7 +1,7 @@
 mod common;
 
 use crate::common::std_file::StdFile;
-use embedded_fat::FileSystemBuilder;
+use embedded_fat::FilesystemBuilder;
 use embedded_io::Read;
 use std::fs::File;
 
@@ -21,7 +21,7 @@ fn fat32() {
 }
 
 fn verify_disk(file_name: &str) {
-    let file_system = FileSystemBuilder::from_stream(StdFile::new(
+    let file_system = FilesystemBuilder::from_stream(StdFile::new(
         File::open(String::from("disks/") + file_name).unwrap(),
     ))
     .build()

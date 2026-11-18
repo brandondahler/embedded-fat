@@ -6,13 +6,14 @@ mod tests;
 pub use error::*;
 
 use crate::allocation_table::{AllocationTable, AllocationTableEntry};
-use crate::device::Device;
+use crate::filesystem_state::FilesystemState;
 use crate::queued_resource::QueuedResource;
 use core::cell::RefCell;
 use core::cmp::min;
 use core::ops::DerefMut;
 use embedded_io::{ErrorType, SeekFrom};
 
+use crate::directory_item::DirectoryItem;
 #[cfg(feature = "sync")]
 use embedded_io::{Read, Seek, Write};
 #[cfg(feature = "async")]
@@ -23,13 +24,13 @@ pub struct File<'a, S, const N: usize>
 where
     S: ErrorType,
 {
-    device: &'a QueuedResource<Device<S>, N>,
+    allocation_table: &'a AllocationTable,
+    state: &'a QueuedResource<FilesystemState<S>, N>,
 
     data_region_base_address: u64,
     bytes_per_cluster: u32,
 
-    first_cluster_number: u32,
-    file_size: u32,
+    directory_item: DirectoryItem,
 
     current_position: u32,
 
@@ -42,24 +43,26 @@ where
     S: ErrorType,
 {
     pub fn new(
-        device: &'a QueuedResource<Device<S>, N>,
+        allocation_table: &'a AllocationTable,
+        state: &'a QueuedResource<FilesystemState<S>, N>,
         data_region_base_address: u64,
         bytes_per_cluster: u32,
-        first_cluster_number: u32,
-        file_size: u32,
+        directory_item: DirectoryItem,
     ) -> Self {
+        let current_cluster_number = directory_item.first_cluster_number();
+
         Self {
-            device,
+            allocation_table,
+            state,
 
             data_region_base_address,
             bytes_per_cluster,
 
-            first_cluster_number,
-            file_size,
+            directory_item,
 
             current_position: 0,
 
-            current_cluster_number: first_cluster_number,
+            current_cluster_number,
             current_cluster_offset: 0,
         }
     }
@@ -74,7 +77,7 @@ where
         min(
             min(
                 target_buffer_length.try_into().unwrap_or(u32::MAX),
-                self.file_size - self.current_position,
+                self.directory_item.file_size() - self.current_position,
             ),
             self.bytes_per_cluster - self.current_cluster_offset,
         ) as usize
@@ -91,7 +94,7 @@ where
                     .map_err(|_| FileError::SeekPositionImpossible(desired_address))?
             }
             SeekFrom::End(end_offset) => {
-                let desired_address: i64 = self.file_size as i64 + end_offset;
+                let desired_address: i64 = self.directory_item.file_size() as i64 + end_offset;
 
                 desired_address
                     .try_into()
@@ -102,6 +105,16 @@ where
         desired_address
             .try_into()
             .map_err(|_| FileError::SeekPositionBeyondLimits(desired_address))
+    }
+}
+
+#[cfg(feature = "sync")]
+impl<S, const N: usize> File<'_, S, N>
+where
+    S: Read + Seek + Write,
+{
+    pub fn set_len(&mut self, length: usize) -> &mut Self {
+        todo!()
     }
 }
 
@@ -126,12 +139,12 @@ where
         }
 
         let actual_read_size = {
-            let mut device_lease = self.device.try_acquire_resource()?;
+            let mut state_lease = self.state.try_acquire_resource()?;
 
-            device_lease
+            state_lease
                 .stream
                 .seek(SeekFrom::Start(self.current_address()))?;
-            device_lease.stream.read(&mut buf[0..target_read_size])?
+            state_lease.stream.read(&mut buf[0..target_read_size])?
         };
 
         self.seek(SeekFrom::Current(actual_read_size as i64))?;
@@ -153,13 +166,13 @@ where
         }
 
         let actual_read_size = {
-            let mut device_lease = self.device.acquire_resource_async().await?;
+            let mut state_lease = self.state.acquire_resource_async().await?;
 
-            device_lease
+            state_lease
                 .stream
                 .seek(SeekFrom::Start(self.current_address()))
                 .await?;
-            device_lease
+            state_lease
                 .stream
                 .read(&mut buf[0..target_read_size])
                 .await?
@@ -194,20 +207,19 @@ where
         if !is_inside_current_cluster {
             if relative_position_change < 0 {
                 // Rewind back to the start
-                new_cluster_number = self.first_cluster_number;
+                new_cluster_number = self.directory_item.first_cluster_number();
                 new_cluster_offset = desired_position as i64;
             }
 
             {
-                let mut device_lease = self.device.try_acquire_resource()?;
-                let Device {
-                    stream,
-                    allocation_table,
-                } = device_lease.deref_mut();
+                let mut state_lease = self.state.try_acquire_resource()?;
 
                 // Navigate forward until we get to the correct cluster or reach EOF
                 while new_cluster_offset > self.bytes_per_cluster as i64 {
-                    match allocation_table.read_entry(stream, new_cluster_number)? {
+                    match self
+                        .allocation_table
+                        .read_entry(&mut state_lease, new_cluster_number)?
+                    {
                         AllocationTableEntry::NextClusterNumber(next_cluster_number) => {
                             new_cluster_number = next_cluster_number;
                             new_cluster_offset -= self.bytes_per_cluster as i64;
@@ -256,21 +268,18 @@ where
         if !is_inside_current_cluster {
             if relative_position_change < 0 {
                 // Rewind back to the start
-                new_cluster_number = self.first_cluster_number;
+                new_cluster_number = self.directory_item.first_cluster_number();
                 new_cluster_offset = desired_position as i64;
             }
 
             {
-                let mut device_lease = self.device.acquire_resource_async().await?;
-                let Device {
-                    stream,
-                    allocation_table,
-                } = device_lease.deref_mut();
+                let mut state_lease = self.state.acquire_resource_async().await?;
 
                 // Navigate forward until we get to the correct cluster or reach EOF
                 while new_cluster_offset >= self.bytes_per_cluster as i64 {
-                    match allocation_table
-                        .read_entry_async(stream, new_cluster_number)
+                    match self
+                        .allocation_table
+                        .read_entry_async(&mut state_lease, new_cluster_number)
                         .await?
                     {
                         AllocationTableEntry::NextClusterNumber(next_cluster_number) => {
@@ -310,9 +319,9 @@ where
 
     fn flush(&mut self) -> Result<(), Self::Error> {
         {
-            let mut device_lease = self.device.try_acquire_resource()?;
+            let mut state_lease = self.state.try_acquire_resource()?;
 
-            device_lease.stream.flush()?;
+            state_lease.stream.flush()?;
         }
 
         Ok(())
@@ -330,9 +339,9 @@ where
 
     async fn flush(&mut self) -> Result<(), Self::Error> {
         {
-            let mut device_lease = self.device.acquire_resource_async().await?;
+            let mut state_lease = self.state.acquire_resource_async().await?;
 
-            device_lease.stream.flush().await?;
+            state_lease.stream.flush().await?;
         }
 
         Ok(())

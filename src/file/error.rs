@@ -12,7 +12,7 @@ pub enum FileError<SE>
 where
     SE: embedded_io::Error,
 {
-    DeviceBusy,
+    FilesystemBusy,
     SeekPositionBeyondLimits(u64),
     SeekPositionImpossible(i64),
     StreamEndReached,
@@ -28,7 +28,7 @@ where
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
-            FileError::DeviceBusy => write!(f, "the device is currently busy"),
+            FileError::FilesystemBusy => write!(f, "the filesystem is currently busy"),
             FileError::SeekPositionBeyondLimits(desired_address) => write!(
                 f,
                 "seek position provided results in address beyond allowed limits: {}",
@@ -75,7 +75,7 @@ where
     SE: embedded_io::Error,
 {
     fn from(value: QueuedResourceBusyError) -> Self {
-        Self::DeviceBusy
+        Self::FilesystemBusy
     }
 }
 

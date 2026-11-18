@@ -17,7 +17,6 @@ pub const SHORT_NAME_CHARACTER_COUNT: usize = 11;
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct ShortNameDirectoryEntry {
     name: ShortFileName,
-
     attributes: DirectoryEntryAttributes,
 
     first_cluster_number: u32,
@@ -25,6 +24,27 @@ pub struct ShortNameDirectoryEntry {
 }
 
 impl ShortNameDirectoryEntry {
+    pub fn new(
+        name: ShortFileName,
+        attributes: DirectoryEntryAttributes,
+        first_cluster_number: u32,
+        file_size: u32,
+    ) -> Self {
+        debug_assert_ne!(
+            attributes & DirectoryEntryAttributes::LongName,
+            DirectoryEntryAttributes::LongName,
+            "ShortNameDirectoryEntry created with LongName entry attributes"
+        );
+
+        Self {
+            name,
+            attributes,
+
+            first_cluster_number,
+            file_size,
+        }
+    }
+
     pub fn from_bytes(
         bytes: &[u8; DIRECTORY_ENTRY_SIZE],
     ) -> Result<Self, ShortNameDirectoryEntryError> {
@@ -66,9 +86,15 @@ impl ShortNameDirectoryEntry {
     pub fn first_cluster_number(&self) -> u32 {
         self.first_cluster_number
     }
+    pub fn set_first_cluster_number(&mut self, first_cluster_number: u32) {
+        self.first_cluster_number = first_cluster_number;
+    }
 
     pub fn file_size(&self) -> u32 {
         self.file_size
+    }
+    pub fn set_file_size(&mut self, file_size: u32) {
+        self.file_size = file_size;
     }
 
     pub fn write(&self, mut bytes: &mut [u8; DIRECTORY_ENTRY_SIZE]) {

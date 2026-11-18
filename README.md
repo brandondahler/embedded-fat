@@ -12,7 +12,7 @@ A FAT filesystem implementation optimized for embedded systems.
 
 ## Example Usage
 ```rust
-let file_system = FileSystemBuilder::from_stream(StdFile::new(
+let file_system = FilesystemBuilder::from_stream(StdFile::new(
     File::open("disks/fat32.bin").unwrap(),
   ))
   .build()
@@ -27,11 +27,11 @@ file.read_exact(&mut bytes).unwrap();
 ```
 
 ## Block-level Access
-Block-level access is implemented through the stream instance passed into the FileSystemBuilder. Streams must implement 
-`Read + Seek` to support read access, with `Write` additionally required for write access. Both synchronous traits from 
-`embedded-io` and asyncrhonous traits from `embedded-io-async` are supported
+Block-level access is implemented through the stream instance passed into the `FilesystemBuilder`. Streams must 
+implement `Read + Seek` to support read access, with `Write` additionally required for write access. Both synchronous 
+traits from `embedded-io` and asynchronous traits from `embedded-io-async` are supported
 
-The `FileSystem` and `File` instances expose the corresponding synchronous and/or asynchronous methods based on the 
+The `Filesystem` and `File` instances expose the corresponding synchronous and/or asynchronous methods based on the 
 underlying stream's capabilities.
 
 ## Async Support
@@ -43,7 +43,7 @@ This is particularly useful when working with hardware-assisted I/O, such as DMA
 and programmable I/O peripherals, which can handle portions of the data transfer independently of the CPU.
 
 Asynchronous I/O operations are managed through a bounded queue, allowing multiple operations to remain outstanding 
-concurrently. The maximum number of outstanding operations is configurable through `FileSystemBuilder`, providing 
+concurrently. The maximum number of outstanding operations is configurable through `FilesystemBuilder`, providing 
 control over concurrency and memory usage without requiring dynamic allocation.
 
 See the [RTIC](https://rtic.rs) and [Embassy](https://embassy.dev/) projects for frameworks that provide async runtimes

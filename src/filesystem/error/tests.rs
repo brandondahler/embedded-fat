@@ -8,13 +8,13 @@ mod display {
     #[test]
     fn produces_non_empty_value() {
         let values = [
-            FileSystemError::DeviceBusy,
-            FileSystemError::InvalidFatSignature,
-            FileSystemError::InvalidBiosParameterBlock(
+            FilesystemError::FilesystemBusy,
+            FilesystemError::InvalidFatSignature,
+            FilesystemError::InvalidBiosParameterBlock(
                 BiosParameterBlockError::AllocationTableCountInvalid,
             ),
-            FileSystemError::StreamEndReached,
-            FileSystemError::StreamError(IoError::default()),
+            FilesystemError::StreamEndReached,
+            FilesystemError::StreamError(IoError::default()),
         ];
 
         for value in values {

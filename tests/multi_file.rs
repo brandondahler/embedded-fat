@@ -2,7 +2,7 @@ mod common;
 
 use crate::common::delayed_std_file::DelayedStdFile;
 use crate::common::std_file::StdFile;
-use embedded_fat::FileSystemBuilder;
+use embedded_fat::FilesystemBuilder;
 use embedded_io::Read;
 use embedded_io_async::Read as AsyncRead;
 use std::fs::File;
@@ -11,7 +11,7 @@ use std::time::Duration;
 #[test]
 fn multi_file_access_sync() {
     let file_system =
-        FileSystemBuilder::from_stream(StdFile::new(File::open("disks/fat32.img").unwrap()))
+        FilesystemBuilder::from_stream(StdFile::new(File::open("disks/fat32.img").unwrap()))
             .build()
             .unwrap();
 
@@ -30,7 +30,7 @@ fn multi_file_access_sync() {
 
 #[tokio::test]
 async fn multi_file_access_async() {
-    let file_system = FileSystemBuilder::from_stream(DelayedStdFile::new(
+    let file_system = FilesystemBuilder::from_stream(DelayedStdFile::new(
         File::open("disks/fat32.img").unwrap(),
         Duration::from_millis(100),
         true,
@@ -58,7 +58,7 @@ async fn multi_file_access_async() {
 
 #[tokio::test]
 async fn multi_file_access_mixed() {
-    let file_system = FileSystemBuilder::from_stream(DelayedStdFile::new(
+    let file_system = FilesystemBuilder::from_stream(DelayedStdFile::new(
         File::open("disks/fat32.img").unwrap(),
         Duration::from_millis(100),
         true,

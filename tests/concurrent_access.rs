@@ -1,6 +1,6 @@
 use crate::common::delayed_std_file::DelayedStdFile;
 use core::assert_matches;
-use embedded_fat::{FileError, FileSystemBuilder};
+use embedded_fat::{FileError, FilesystemBuilder};
 use embedded_io::ReadExactError;
 use embedded_io_async::Read as AsyncRead;
 use std::fs::File;
@@ -15,12 +15,12 @@ mod common;
 
 #[test]
 fn concurrent_access_sync() {
-    let file_system = FileSystemBuilder::from_stream(DelayedStdFile::new(
+    let file_system = FilesystemBuilder::from_stream(DelayedStdFile::new(
         File::open("disks/fat32.img").unwrap(),
         Duration::from_millis(100),
         false,
     ))
-    .with_device_queue_length::<2>()
+    .with_access_queue_length::<2>()
     .build()
     .unwrap();
 
@@ -68,12 +68,12 @@ fn concurrent_access_sync() {
 #[tokio::test]
 async fn concurrent_access_async() {
     let file_system = Arc::new(
-        FileSystemBuilder::from_stream(DelayedStdFile::new(
+        FilesystemBuilder::from_stream(DelayedStdFile::new(
             File::open("disks/fat32.img").unwrap(),
             Duration::from_millis(100),
             true,
         ))
-        .with_device_queue_length::<2>()
+        .with_access_queue_length::<2>()
         .build()
         .unwrap(),
     );

@@ -1,8 +1,8 @@
 use super::*;
 use crate::AllocationTableKind;
 use crate::allocation_table::AllocationTable;
-use crate::device::Device;
 use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, FreeDirectoryEntry};
+use crate::filesystem_state::FilesystemState;
 use crate::mock::DataStream;
 use crate::queued_resource::QueuedResource;
 use crate::utils::write_le_u32;
@@ -164,7 +164,8 @@ mod next_async {
 type TestInstanceStream = DataStream<Vec<u8>>;
 
 struct TestInstance {
-    device: QueuedResource<Device<TestInstanceStream>, 0>,
+    allocation_table: AllocationTable,
+    state: QueuedResource<FilesystemState<TestInstanceStream>, 0>,
 
     data_region_base_address: u64,
     entry_count: u16,
@@ -181,10 +182,8 @@ impl TestInstance {
         }
 
         Self {
-            device: QueuedResource::new(Device {
-                stream: DataStream::from_bytes(data),
-                allocation_table: AllocationTable::new(allocation_table_kind, 0, 10),
-            }),
+            allocation_table: AllocationTable::new(allocation_table_kind, 0, 10),
+            state: QueuedResource::new(FilesystemState::new(DataStream::from_bytes(data))),
 
             entry_count,
             data_region_base_address: 12,
@@ -193,7 +192,8 @@ impl TestInstance {
 
     fn file_iterator(&self) -> DirectoryEntryIterator<'_, TestInstanceStream, 0> {
         let iterator = DirectoryFileEntryIterator::new(
-            &self.device,
+            &self.allocation_table,
+            &self.state,
             self.data_region_base_address,
             self.entry_count as u32 * DIRECTORY_ENTRY_SIZE as u32,
             2,
@@ -204,7 +204,7 @@ impl TestInstance {
 
     fn table_iterator(&self) -> DirectoryEntryIterator<'_, TestInstanceStream, 0> {
         let iterator = DirectoryTableEntryIterator::new(
-            &self.device,
+            &self.state,
             self.data_region_base_address,
             self.entry_count,
         );

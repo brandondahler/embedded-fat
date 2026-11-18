@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests;
 
-use crate::device::Device;
 use crate::directory_entry::{DIRECTORY_ENTRY_SIZE, DirectoryEntry, DirectoryEntryIterationError};
+use crate::filesystem_state::FilesystemState;
 use crate::queued_resource::QueuedResource;
 use core::cell::RefCell;
 use embedded_io::{ErrorType, SeekFrom};
@@ -18,7 +18,7 @@ pub struct DirectoryTableEntryIterator<'a, S, const N: usize>
 where
     S: ErrorType,
 {
-    device: &'a QueuedResource<Device<S>, N>,
+    state: &'a QueuedResource<FilesystemState<S>, N>,
 
     start_address: u64,
     entry_count: u16,
@@ -31,12 +31,12 @@ where
     S: ErrorType,
 {
     pub fn new(
-        device: &'a QueuedResource<Device<S>, N>,
+        state: &'a QueuedResource<FilesystemState<S>, N>,
         start_address: u64,
         entry_count: u16,
     ) -> Self {
         Self {
-            device,
+            state,
 
             start_address,
             entry_count,
@@ -81,10 +81,10 @@ where
         let mut directory_entry_bytes = [0; DIRECTORY_ENTRY_SIZE];
 
         {
-            let mut device_lease = self.device.try_acquire_resource()?;
+            let mut state_lease = self.state.try_acquire_resource()?;
 
-            device_lease.stream.seek(SeekFrom::Start(current_address))?;
-            device_lease.stream.read_exact(&mut directory_entry_bytes)?;
+            state_lease.stream.seek(SeekFrom::Start(current_address))?;
+            state_lease.stream.read_exact(&mut directory_entry_bytes)?;
         }
 
         let directory_entry = DirectoryEntry::from_bytes(&directory_entry_bytes)?;
@@ -121,13 +121,13 @@ where
         let mut directory_entry_bytes = [0; DIRECTORY_ENTRY_SIZE];
 
         {
-            let mut device_lease = self.device.acquire_resource_async().await?;
+            let mut state_lease = self.state.acquire_resource_async().await?;
 
-            device_lease
+            state_lease
                 .stream
                 .seek(SeekFrom::Start(current_address))
                 .await?;
-            device_lease
+            state_lease
                 .stream
                 .read_exact(&mut directory_entry_bytes)
                 .await?;

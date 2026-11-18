@@ -5,15 +5,14 @@ mod error;
 mod tests;
 
 pub use builder::*;
-use core::cell::RefCell;
 pub use error::*;
 
 use crate::allocation_table::AllocationTable;
 use crate::boot_sector::BiosParameterBlock;
-use crate::device::Device;
 use crate::directory::{Directory, DirectoryFile, DirectoryTable};
 use crate::directory_entry::DirectoryEntryIterationError;
 use crate::directory_item::DirectoryItem;
+use crate::filesystem_state::FilesystemState;
 use crate::queued_resource::QueuedResource;
 use crate::{AllocationTableKind, CodePageEncoder, DirectoryItemIterationError, File};
 use core::error::Error;
@@ -32,24 +31,25 @@ use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrit
 /// capabilities.  Synchronous operations require embedded-io traits while asynchronous operations
 /// require embedded-io-async traits.
 ///
-/// Using multiple [FileSystem] instances on the same physical storage medium may result in read
+/// Using multiple [Filesystem] instances on the same physical storage medium may result in read
 /// and/or filesystem corruption.
 #[derive(Debug)]
-pub struct FileSystem<S, const N: usize, CPE, IDE>
+pub struct Filesystem<S, const N: usize, CPE, IDE>
 where
     S: ErrorType,
     CPE: CodePageEncoder,
     IDE: Fn(DirectoryItemIterationError<S::Error>),
 {
-    device: QueuedResource<Device<S>, N>,
     code_page_encoder: CPE,
+    on_invalid_directory_entry: IDE,
 
+    allocation_table: AllocationTable,
     bios_parameter_block: BiosParameterBlock,
 
-    on_invalid_directory_entry: IDE,
+    state: QueuedResource<FilesystemState<S>, N>,
 }
 
-impl<S, const N: usize, CPE, IDE> FileSystem<S, N, CPE, IDE>
+impl<S, const N: usize, CPE, IDE> Filesystem<S, N, CPE, IDE>
 where
     S: ErrorType,
     CPE: CodePageEncoder,
@@ -61,14 +61,15 @@ where
             .root_directory_file_cluster_number()
         {
             Some(root_directory_file_cluster_number) => DirectoryFile::new(
-                &self.device,
+                &self.allocation_table,
+                &self.state,
                 self.bios_parameter_block.data_region_base_address(),
                 self.bios_parameter_block.bytes_per_cluster(),
                 root_directory_file_cluster_number,
             )
             .into(),
             None => DirectoryTable::new(
-                &self.device,
+                &self.state,
                 self.bios_parameter_block.directory_table_base_address(),
                 self.bios_parameter_block.directory_table_entry_count(),
             )
@@ -79,7 +80,8 @@ where
     fn directory_for(&'_ self, item: &DirectoryItem) -> Option<DirectoryFile<'_, S, N>> {
         if item.is_directory() {
             Some(DirectoryFile::new(
-                &self.device,
+                &self.allocation_table,
+                &self.state,
                 self.bios_parameter_block.data_region_base_address(),
                 self.bios_parameter_block.bytes_per_cluster(),
                 item.first_cluster_number(),
@@ -89,14 +91,14 @@ where
         }
     }
 
-    fn file_for(&'_ self, item: &DirectoryItem) -> Option<File<'_, S, N>> {
+    fn file_for(&'_ self, item: DirectoryItem) -> Option<File<'_, S, N>> {
         if item.is_file() {
             Some(File::new(
-                &self.device,
+                &self.allocation_table,
+                &self.state,
                 self.bios_parameter_block.data_region_base_address(),
                 self.bios_parameter_block.bytes_per_cluster(),
-                item.first_cluster_number(),
-                item.file_size(),
+                item,
             ))
         } else {
             None
@@ -105,13 +107,13 @@ where
 
     fn validate_boot_sector_signature<SE>(
         boot_sector_bytes: &[u8; 512],
-    ) -> Result<(), FileSystemError<SE>>
+    ) -> Result<(), FilesystemError<SE>>
     where
         SE: embedded_io::Error,
     {
         ensure!(
             boot_sector_bytes[510] == 0x55 && boot_sector_bytes[511] == 0xAA,
-            FileSystemError::InvalidFatSignature
+            FilesystemError::InvalidFatSignature
         );
 
         Ok(())
@@ -119,24 +121,29 @@ where
 }
 
 #[cfg(feature = "sync")]
-impl<S, const N: usize, CPE, IDE> FileSystem<S, N, CPE, IDE>
+impl<S, const N: usize, CPE, IDE> Filesystem<S, N, CPE, IDE>
 where
     S: Read + Seek,
     CPE: CodePageEncoder,
     IDE: Fn(DirectoryItemIterationError<S::Error>),
 {
-    /// Loads an existing FAT filesystem from the provided `device`.
+    /// Loads an existing FAT filesystem from the provided `stream`.
     pub fn new(
         mut stream: S,
         code_page_encoder: CPE,
         on_invalid_directory_entry: IDE,
-    ) -> Result<Self, FileSystemError<S::Error>> {
+    ) -> Result<Self, FilesystemError<S::Error>> {
         let mut boot_sector_bytes = [0; 512];
 
         stream.seek(SeekFrom::Start(0))?;
         stream.read_exact(&mut boot_sector_bytes)?;
 
         Self::validate_boot_sector_signature(&boot_sector_bytes)?;
+
+        let state = QueuedResource::new(FilesystemState {
+            stream,
+            free_cluster_scan_start_number: 2,
+        });
 
         let bios_parameter_block = BiosParameterBlock::from_boot_sector(&boot_sector_bytes)?;
         let allocation_table = AllocationTable::new(
@@ -146,21 +153,19 @@ where
         );
 
         Ok(Self {
-            device: QueuedResource::new(Device {
-                stream,
-                allocation_table,
-            }),
             code_page_encoder,
+            on_invalid_directory_entry,
 
+            allocation_table,
             bios_parameter_block,
 
-            on_invalid_directory_entry,
+            state,
         })
     }
 
     /// Searches for and opens an existing file.
     pub fn open(&self, file_path: &str) -> Option<File<'_, S, N>> {
-        self.file_for(&self.find_item(file_path)?)
+        self.file_for(self.find_item(file_path)?)
     }
 
     fn find_item(&self, file_path: &str) -> Option<DirectoryItem> {
@@ -196,18 +201,18 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<S, const N: usize, CPE, IDE> FileSystem<S, N, CPE, IDE>
+impl<S, const N: usize, CPE, IDE> Filesystem<S, N, CPE, IDE>
 where
     S: AsyncRead + AsyncSeek,
     CPE: CodePageEncoder,
     IDE: Fn(DirectoryItemIterationError<S::Error>),
 {
-    /// Loads an existing FAT filesystem from the provided `device`.
+    /// Loads an existing FAT filesystem from the provided `stream`.
     pub async fn new_async(
         mut stream: S,
         code_page_encoder: CPE,
         on_invalid_directory_entry: IDE,
-    ) -> Result<Self, FileSystemError<S::Error>> {
+    ) -> Result<Self, FilesystemError<S::Error>> {
         let mut boot_sector_bytes = [0; 512];
 
         stream.seek(SeekFrom::Start(0)).await?;
@@ -223,21 +228,22 @@ where
         );
 
         Ok(Self {
-            device: QueuedResource::new(Device {
-                stream,
-                allocation_table,
-            }),
             code_page_encoder,
+            on_invalid_directory_entry,
 
+            allocation_table,
             bios_parameter_block,
 
-            on_invalid_directory_entry,
+            state: QueuedResource::new(FilesystemState {
+                stream,
+                free_cluster_scan_start_number: 2,
+            }),
         })
     }
 
     /// Searches for and opens an existing file.
     pub async fn open_async(&self, file_path: &str) -> Option<File<'_, S, N>> {
-        self.file_for(&self.find_item_async(file_path).await?)
+        self.file_for(self.find_item_async(file_path).await?)
     }
 
     async fn find_item_async(&self, file_path: &str) -> Option<DirectoryItem> {

@@ -35,11 +35,11 @@ mod directory_item;
 mod encoding;
 mod file;
 mod file_name;
-mod file_system;
+mod filesystem;
 mod queued_resource;
 mod waker_queue;
 
-mod device;
+mod filesystem_state;
 #[cfg(test)]
 mod mock;
 
@@ -51,4 +51,4 @@ pub use directory_entry::{
 pub use directory_item::{DirectoryItemError, DirectoryItemIterationError};
 pub use encoding::{AsciiOnlyEncoder, CodePageEncoder};
 pub use file::{File, FileError};
-pub use file_system::{FileSystem, FileSystemBuilder, FileSystemError};
+pub use filesystem::{Filesystem, FilesystemBuilder, FilesystemError};

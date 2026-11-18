@@ -13,11 +13,12 @@ mod read_entry {
     #[test]
     fn fat_12_entry_values_read_successfully() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat12, 0, 10);
-        let mut stream = DataStream::from_bytes([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC]);
+        let mut state =
+            FilesystemState::new(DataStream::from_bytes([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC]));
 
         assert_eq!(
             allocation_table
-                .read_entry(&mut stream, 0)
+                .read_entry(&mut state, 0)
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0x412),
             "Non-offset value should read correctly"
@@ -25,7 +26,7 @@ mod read_entry {
 
         assert_eq!(
             allocation_table
-                .read_entry(&mut stream, 1)
+                .read_entry(&mut state, 1)
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0x563),
             "Nibble-offset value should read correctly"
@@ -33,7 +34,7 @@ mod read_entry {
 
         assert_eq!(
             allocation_table
-                .read_entry(&mut stream, 2)
+                .read_entry(&mut state, 2)
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0xA78),
             "Byte offset value should read correctly"
@@ -41,7 +42,7 @@ mod read_entry {
 
         assert_eq!(
             allocation_table
-                .read_entry(&mut stream, 3)
+                .read_entry(&mut state, 3)
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0xBC9),
             "Byte and nibble offset value should read correctly"
@@ -51,11 +52,11 @@ mod read_entry {
     #[test]
     fn fat_16_offset_entry_values_read_successfully() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0, 10);
-        let mut stream = DataStream::from_bytes([0x12, 0x34, 0x56, 0x78]);
+        let mut state = FilesystemState::new(DataStream::from_bytes([0x12, 0x34, 0x56, 0x78]));
 
         assert_eq!(
             allocation_table
-                .read_entry(&mut stream, 0)
+                .read_entry(&mut state, 0)
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0x3412),
             "Non-offset value should read correctly"
@@ -63,7 +64,7 @@ mod read_entry {
 
         assert_eq!(
             allocation_table
-                .read_entry(&mut stream, 1)
+                .read_entry(&mut state, 1)
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0x7856),
             "Offset value should read correctly"
@@ -73,12 +74,14 @@ mod read_entry {
     #[test]
     fn fat_32_offset_entry_values_read_successfully() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
-        let mut stream = DataStream::from_bytes([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xFF]);
+        let mut state = FilesystemState::new(DataStream::from_bytes([
+            0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xFF,
+        ]));
 
         // NOTE: Fat32 only uses the lower 28 of the 32 bits
         assert_eq!(
             allocation_table
-                .read_entry(&mut stream, 0)
+                .read_entry(&mut state, 0)
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0x08563412),
             "Non-offset value should read correctly"
@@ -86,7 +89,7 @@ mod read_entry {
 
         assert_eq!(
             allocation_table
-                .read_entry(&mut stream, 1)
+                .read_entry(&mut state, 1)
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0x0FDEBC9A),
             "Offset value should read correctly"
@@ -96,11 +99,11 @@ mod read_entry {
     #[test]
     fn base_address_honored() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 2, 10);
-        let mut stream = DataStream::from_bytes([0x12, 0x34, 0x56, 0x78]);
+        let mut state = FilesystemState::new(DataStream::from_bytes([0x12, 0x34, 0x56, 0x78]));
 
         assert_eq!(
             allocation_table
-                .read_entry(&mut stream, 0)
+                .read_entry(&mut state, 0)
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0x7856),
             "Value should read correctly"
@@ -110,10 +113,10 @@ mod read_entry {
     #[test]
     fn stream_not_long_enough_returns_error() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
-        let mut stream = DataStream::from_bytes([0x12, 0x34]);
+        let mut state = FilesystemState::new(DataStream::from_bytes([0x12, 0x34]));
 
         let result = allocation_table
-            .read_entry(&mut stream, 0)
+            .read_entry(&mut state, 0)
             .expect_err("Read should fail");
 
         assert_matches!(result, AllocationTableReadError::StreamEndReached);
@@ -122,14 +125,14 @@ mod read_entry {
     #[test]
     fn stream_seek_error_propagated() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
-        let mut stream = ErroringStream::new(
+        let mut state = FilesystemState::new(ErroringStream::new(
             DataStream::from_bytes([0, 0, 0, 0]),
             IoError::default(),
             ErroringStreamScenarios::SEEK,
-        );
+        ));
 
         let result = allocation_table
-            .read_entry(&mut stream, 0)
+            .read_entry(&mut state, 0)
             .expect_err("Read should fail");
 
         assert_matches!(result, AllocationTableReadError::StreamError(_));
@@ -139,14 +142,14 @@ mod read_entry {
     fn stream_read_error_propagated() {
         for allocation_table_kind in [AllocationTableKind::Fat16, AllocationTableKind::Fat32] {
             let allocation_table = AllocationTable::new(allocation_table_kind, 0, 10);
-            let mut stream = ErroringStream::new(
+            let mut state = FilesystemState::new(ErroringStream::new(
                 DataStream::from_bytes([0, 0, 0, 0]),
                 IoError::default(),
                 ErroringStreamScenarios::READ,
-            );
+            ));
 
             let result = allocation_table
-                .read_entry(&mut stream, 0)
+                .read_entry(&mut state, 0)
                 .expect_err("Read should fail");
 
             assert_matches!(result, AllocationTableReadError::StreamError(_));
@@ -160,11 +163,12 @@ mod read_entry_async {
     #[tokio::test]
     async fn fat_12_entry_values_read_successfully() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat12, 0, 10);
-        let mut stream = DataStream::from_bytes([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC]);
+        let mut state =
+            FilesystemState::new(DataStream::from_bytes([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC]));
 
         assert_eq!(
             allocation_table
-                .read_entry_async(&mut stream, 0)
+                .read_entry_async(&mut state, 0)
                 .await
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0x412),
@@ -173,7 +177,7 @@ mod read_entry_async {
 
         assert_eq!(
             allocation_table
-                .read_entry_async(&mut stream, 1)
+                .read_entry_async(&mut state, 1)
                 .await
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0x563),
@@ -182,7 +186,7 @@ mod read_entry_async {
 
         assert_eq!(
             allocation_table
-                .read_entry_async(&mut stream, 2)
+                .read_entry_async(&mut state, 2)
                 .await
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0xA78),
@@ -191,7 +195,7 @@ mod read_entry_async {
 
         assert_eq!(
             allocation_table
-                .read_entry_async(&mut stream, 3)
+                .read_entry_async(&mut state, 3)
                 .await
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0xBC9),
@@ -202,11 +206,11 @@ mod read_entry_async {
     #[tokio::test]
     async fn fat_16_offset_entry_values_read_successfully() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0, 10);
-        let mut stream = DataStream::from_bytes([0x12, 0x34, 0x56, 0x78]);
+        let mut state = FilesystemState::new(DataStream::from_bytes([0x12, 0x34, 0x56, 0x78]));
 
         assert_eq!(
             allocation_table
-                .read_entry_async(&mut stream, 0)
+                .read_entry_async(&mut state, 0)
                 .await
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0x3412),
@@ -215,7 +219,7 @@ mod read_entry_async {
 
         assert_eq!(
             allocation_table
-                .read_entry_async(&mut stream, 1)
+                .read_entry_async(&mut state, 1)
                 .await
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0x7856),
@@ -226,12 +230,14 @@ mod read_entry_async {
     #[tokio::test]
     async fn fat_32_offset_entry_values_read_successfully() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
-        let mut stream = DataStream::from_bytes([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xFF]);
+        let mut state = FilesystemState::new(DataStream::from_bytes([
+            0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xFF,
+        ]));
 
         // NOTE: Fat32 only uses the lower 28 of the 32 bits
         assert_eq!(
             allocation_table
-                .read_entry_async(&mut stream, 0)
+                .read_entry_async(&mut state, 0)
                 .await
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0x08563412),
@@ -240,7 +246,7 @@ mod read_entry_async {
 
         assert_eq!(
             allocation_table
-                .read_entry_async(&mut stream, 1)
+                .read_entry_async(&mut state, 1)
                 .await
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0x0FDEBC9A),
@@ -251,11 +257,11 @@ mod read_entry_async {
     #[tokio::test]
     async fn base_address_honored() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 2, 10);
-        let mut stream = DataStream::from_bytes([0x12, 0x34, 0x56, 0x78]);
+        let mut state = FilesystemState::new(DataStream::from_bytes([0x12, 0x34, 0x56, 0x78]));
 
         assert_eq!(
             allocation_table
-                .read_entry_async(&mut stream, 0)
+                .read_entry_async(&mut state, 0)
                 .await
                 .expect("Read should succeed"),
             AllocationTableEntry::NextClusterNumber(0x7856),
@@ -266,10 +272,10 @@ mod read_entry_async {
     #[tokio::test]
     async fn stream_not_long_enough_returns_error() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
-        let mut stream = DataStream::from_bytes([0x12, 0x34]);
+        let mut state = FilesystemState::new(DataStream::from_bytes([0x12, 0x34]));
 
         let result = allocation_table
-            .read_entry_async(&mut stream, 0)
+            .read_entry_async(&mut state, 0)
             .await
             .expect_err("Read should fail");
 
@@ -279,14 +285,14 @@ mod read_entry_async {
     #[tokio::test]
     async fn stream_seek_error_propagated() {
         let allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 10);
-        let mut stream = ErroringStream::new(
+        let mut state = FilesystemState::new(ErroringStream::new(
             DataStream::from_bytes([0, 0, 0, 0]),
             IoError::default(),
             ErroringStreamScenarios::SEEK,
-        );
+        ));
 
         let result = allocation_table
-            .read_entry_async(&mut stream, 0)
+            .read_entry_async(&mut state, 0)
             .await
             .expect_err("Read should fail");
 
@@ -297,14 +303,14 @@ mod read_entry_async {
     async fn stream_read_error_propagated() {
         for allocation_table_kind in [AllocationTableKind::Fat16, AllocationTableKind::Fat32] {
             let allocation_table = AllocationTable::new(allocation_table_kind, 0, 10);
-            let mut stream = ErroringStream::new(
+            let mut state = FilesystemState::new(ErroringStream::new(
                 DataStream::from_bytes([0, 0, 0, 0]),
                 IoError::default(),
                 ErroringStreamScenarios::READ,
-            );
+            ));
 
             let result = allocation_table
-                .read_entry_async(&mut stream, 0)
+                .read_entry_async(&mut state, 0)
                 .await
                 .expect_err("Read should fail");
 
@@ -321,16 +327,16 @@ mod find_free_entry {
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0, 10);
 
         #[rustfmt::skip]
-        let mut stream = DataStream::from_bytes([
+        let mut state = FilesystemState::new(DataStream::from_bytes([
             0xFF, 0xFF,
             0xFF, 0xFF,
             0xFF, 0xFF,
             0x00, 0x00,
             0xFF, 0xFF,
             0x00, 0x00,
-        ]);
+        ]));
 
-        let result = allocation_table.find_free_entry(&mut stream).unwrap();
+        let result = allocation_table.find_free_entry(&mut state).unwrap();
 
         assert_eq!(result, Some(3));
     }
@@ -340,17 +346,17 @@ mod find_free_entry {
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0, 10);
 
         #[rustfmt::skip]
-        let mut stream = DataStream::from_bytes([
+        let mut state = FilesystemState::new(DataStream::from_bytes([
             0xFF, 0xFF,
             0xFF, 0xFF,
             0xFF, 0xFF,
             0x00, 0x00,
             0xFF, 0xFF,
             0x00, 0x00,
-        ]);
+        ]));
 
-        let result1 = allocation_table.find_free_entry(&mut stream).unwrap();
-        let result2 = allocation_table.find_free_entry(&mut stream).unwrap();
+        let result1 = allocation_table.find_free_entry(&mut state).unwrap();
+        let result2 = allocation_table.find_free_entry(&mut state).unwrap();
 
         assert_eq!(result2, result1);
     }
@@ -368,9 +374,9 @@ mod find_free_entry {
         ]));
 
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0, 10);
-        let mut stream = DataStream::from_bytes_ref_cell(bytes.clone());
+        let mut state = FilesystemState::new(DataStream::from_bytes_ref_cell(bytes.clone()));
 
-        let result1 = allocation_table.find_free_entry(&mut stream).unwrap();
+        let result1 = allocation_table.find_free_entry(&mut state).unwrap();
 
         {
             let mut updatable_bytes = bytes.borrow_mut();
@@ -378,7 +384,7 @@ mod find_free_entry {
             updatable_bytes[7] = 0xFF;
         }
 
-        let result2 = allocation_table.find_free_entry(&mut stream).unwrap();
+        let result2 = allocation_table.find_free_entry(&mut state).unwrap();
 
         assert_eq!(result1, Some(3));
         assert_eq!(result2, Some(5));
@@ -389,13 +395,13 @@ mod find_free_entry {
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0, 10);
 
         #[rustfmt::skip]
-        let mut stream = DataStream::from_bytes([
+        let mut state = FilesystemState::new(DataStream::from_bytes([
             0x00, 0x00,
             0x00, 0x00,
             0x00, 0x00
-        ]);
+        ]));
 
-        let result = allocation_table.find_free_entry(&mut stream).unwrap();
+        let result = allocation_table.find_free_entry(&mut state).unwrap();
 
         assert_eq!(result, Some(2));
     }
@@ -405,15 +411,15 @@ mod find_free_entry {
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0, 4);
 
         #[rustfmt::skip]
-        let mut stream = DataStream::from_bytes([
+        let mut state = FilesystemState::new(DataStream::from_bytes([
             0xFF, 0xFF,
             0xFF, 0xFF,
             0xFF, 0xFF,
             0xFF, 0xFF,
             0xFF, 0xFF
-        ]);
+        ]));
 
-        let result = allocation_table.find_free_entry(&mut stream).unwrap();
+        let result = allocation_table.find_free_entry(&mut state).unwrap();
 
         assert_eq!(result, None);
     }
@@ -421,13 +427,13 @@ mod find_free_entry {
     #[test]
     fn read_error_propagated() {
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0, 4);
-        let mut stream = ErroringStream::new(
+        let mut state = FilesystemState::new(ErroringStream::new(
             VoidStream::new(),
             IoError::default(),
             ErroringStreamScenarios::READ,
-        );
+        ));
 
-        let result = allocation_table.find_free_entry(&mut stream);
+        let result = allocation_table.find_free_entry(&mut state);
 
         assert!(result.is_err(), "Err should be returned");
     }
@@ -441,17 +447,17 @@ mod find_free_entry_async {
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0, 10);
 
         #[rustfmt::skip]
-        let mut stream = DataStream::from_bytes([
+        let mut state = FilesystemState::new(DataStream::from_bytes([
             0xFF, 0xFF,
             0xFF, 0xFF,
             0xFF, 0xFF,
             0x00, 0x00,
             0xFF, 0xFF,
             0x00, 0x00,
-        ]);
+        ]));
 
         let result = allocation_table
-            .find_free_entry_async(&mut stream)
+            .find_free_entry_async(&mut state)
             .await
             .unwrap();
 
@@ -463,21 +469,21 @@ mod find_free_entry_async {
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0, 10);
 
         #[rustfmt::skip]
-        let mut stream = DataStream::from_bytes([
+        let mut state = FilesystemState::new(DataStream::from_bytes([
             0xFF, 0xFF,
             0xFF, 0xFF,
             0xFF, 0xFF,
             0x00, 0x00,
             0xFF, 0xFF,
             0x00, 0x00,
-        ]);
+        ]));
 
         let result1 = allocation_table
-            .find_free_entry_async(&mut stream)
+            .find_free_entry_async(&mut state)
             .await
             .unwrap();
         let result2 = allocation_table
-            .find_free_entry_async(&mut stream)
+            .find_free_entry_async(&mut state)
             .await
             .unwrap();
 
@@ -497,10 +503,10 @@ mod find_free_entry_async {
         ]));
 
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0, 10);
-        let mut stream = DataStream::from_bytes_ref_cell(bytes.clone());
+        let mut state = FilesystemState::new(DataStream::from_bytes_ref_cell(bytes.clone()));
 
         let result1 = allocation_table
-            .find_free_entry_async(&mut stream)
+            .find_free_entry_async(&mut state)
             .await
             .unwrap();
 
@@ -511,7 +517,7 @@ mod find_free_entry_async {
         }
 
         let result2 = allocation_table
-            .find_free_entry_async(&mut stream)
+            .find_free_entry_async(&mut state)
             .await
             .unwrap();
 
@@ -524,14 +530,14 @@ mod find_free_entry_async {
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0, 10);
 
         #[rustfmt::skip]
-        let mut stream = DataStream::from_bytes([
+        let mut state = FilesystemState::new(DataStream::from_bytes([
             0x00, 0x00,
             0x00, 0x00,
             0x00, 0x00
-        ]);
+        ]));
 
         let result = allocation_table
-            .find_free_entry_async(&mut stream)
+            .find_free_entry_async(&mut state)
             .await
             .unwrap();
 
@@ -543,16 +549,16 @@ mod find_free_entry_async {
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0, 4);
 
         #[rustfmt::skip]
-        let mut stream = DataStream::from_bytes([
+        let mut state = FilesystemState::new(DataStream::from_bytes([
             0xFF, 0xFF,
             0xFF, 0xFF,
             0xFF, 0xFF,
             0xFF, 0xFF,
             0xFF, 0xFF
-        ]);
+        ]));
 
         let result = allocation_table
-            .find_free_entry_async(&mut stream)
+            .find_free_entry_async(&mut state)
             .await
             .unwrap();
 
@@ -562,13 +568,13 @@ mod find_free_entry_async {
     #[tokio::test]
     async fn read_error_propagated() {
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0, 4);
-        let mut stream = ErroringStream::new(
+        let mut state = FilesystemState::new(ErroringStream::new(
             VoidStream::new(),
             IoError::default(),
             ErroringStreamScenarios::READ,
-        );
+        ));
 
-        let result = allocation_table.find_free_entry_async(&mut stream).await;
+        let result = allocation_table.find_free_entry_async(&mut state).await;
 
         assert!(result.is_err(), "Err should be returned");
     }
@@ -586,10 +592,10 @@ mod update_entry {
         ]));
 
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat12, 0, 3);
-        let mut stream = DataStream::from_bytes_ref_cell(data.clone());
+        let mut state = FilesystemState::new(DataStream::from_bytes_ref_cell(data.clone()));
 
         allocation_table
-            .update_entry(&mut stream, 2, AllocationTableEntry::Free)
+            .update_entry(&mut state, 2, AllocationTableEntry::Free)
             .unwrap();
 
         let updated_data = data.borrow();
@@ -610,10 +616,10 @@ mod update_entry {
         ]));
 
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat12, 0, 3);
-        let mut stream = DataStream::from_bytes_ref_cell(data.clone());
+        let mut state = FilesystemState::new(DataStream::from_bytes_ref_cell(data.clone()));
 
         allocation_table
-            .update_entry(&mut stream, 3, AllocationTableEntry::Free)
+            .update_entry(&mut state, 3, AllocationTableEntry::Free)
             .unwrap();
 
         let updated_data = data.borrow();
@@ -634,10 +640,10 @@ mod update_entry {
         ]));
 
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0, 3);
-        let mut stream = DataStream::from_bytes_ref_cell(data.clone());
+        let mut state = FilesystemState::new(DataStream::from_bytes_ref_cell(data.clone()));
 
         allocation_table
-            .update_entry(&mut stream, 2, AllocationTableEntry::Free)
+            .update_entry(&mut state, 2, AllocationTableEntry::Free)
             .unwrap();
 
         let updated_data = data.borrow();
@@ -660,10 +666,10 @@ mod update_entry {
         ]));
 
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 3);
-        let mut stream = DataStream::from_bytes_ref_cell(data.clone());
+        let mut state = FilesystemState::new(DataStream::from_bytes_ref_cell(data.clone()));
 
         allocation_table
-            .update_entry(&mut stream, 2, AllocationTableEntry::Free)
+            .update_entry(&mut state, 2, AllocationTableEntry::Free)
             .unwrap();
 
         let updated_data = data.borrow();
@@ -680,11 +686,11 @@ mod update_entry {
     #[test]
     fn invalid_entry_returns_err() {
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat12, 0, 10);
-        let mut stream = VoidStream::new();
+        let mut state = FilesystemState::new(VoidStream::new());
 
         let error = allocation_table
             .update_entry(
-                &mut stream,
+                &mut state,
                 2,
                 AllocationTableEntry::NextClusterNumber(u32::MAX),
             )
@@ -708,14 +714,14 @@ mod update_entry {
 
         for kind in kinds {
             let mut allocation_table = AllocationTable::new(kind, 0, 10);
-            let mut stream = ErroringStream::new(
+            let mut state = FilesystemState::new(ErroringStream::new(
                 VoidStream::new(),
                 IoError::default(),
                 ErroringStreamScenarios::SEEK,
-            );
+            ));
 
             let error = allocation_table
-                .update_entry(&mut stream, 2, AllocationTableEntry::Free)
+                .update_entry(&mut state, 2, AllocationTableEntry::Free)
                 .unwrap_err();
 
             assert_eq!(
@@ -731,14 +737,14 @@ mod update_entry {
 
         for kind in kinds {
             let mut allocation_table = AllocationTable::new(kind, 0, 10);
-            let mut stream = ErroringStream::new(
+            let mut state = FilesystemState::new(ErroringStream::new(
                 VoidStream::new(),
                 IoError::default(),
                 ErroringStreamScenarios::WRITE,
-            );
+            ));
 
             let error = allocation_table
-                .update_entry(&mut stream, 2, AllocationTableEntry::Free)
+                .update_entry(&mut state, 2, AllocationTableEntry::Free)
                 .unwrap_err();
 
             assert_eq!(
@@ -751,14 +757,14 @@ mod update_entry {
     #[test]
     fn read_error_propagates_err() {
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat12, 0, 10);
-        let mut stream = ErroringStream::new(
+        let mut state = FilesystemState::new(ErroringStream::new(
             VoidStream::new(),
             IoError::default(),
             ErroringStreamScenarios::READ,
-        );
+        ));
 
         let error = allocation_table
-            .update_entry(&mut stream, 2, AllocationTableEntry::Free)
+            .update_entry(&mut state, 2, AllocationTableEntry::Free)
             .unwrap_err();
 
         assert_eq!(
@@ -780,10 +786,10 @@ mod update_entry_async {
         ]));
 
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat12, 0, 3);
-        let mut stream = DataStream::from_bytes_ref_cell(data.clone());
+        let mut state = FilesystemState::new(DataStream::from_bytes_ref_cell(data.clone()));
 
         allocation_table
-            .update_entry_async(&mut stream, 2, AllocationTableEntry::Free)
+            .update_entry_async(&mut state, 2, AllocationTableEntry::Free)
             .await
             .unwrap();
 
@@ -805,10 +811,10 @@ mod update_entry_async {
         ]));
 
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat12, 0, 3);
-        let mut stream = DataStream::from_bytes_ref_cell(data.clone());
+        let mut state = FilesystemState::new(DataStream::from_bytes_ref_cell(data.clone()));
 
         allocation_table
-            .update_entry_async(&mut stream, 3, AllocationTableEntry::Free)
+            .update_entry_async(&mut state, 3, AllocationTableEntry::Free)
             .await
             .unwrap();
 
@@ -830,10 +836,10 @@ mod update_entry_async {
         ]));
 
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat16, 0, 3);
-        let mut stream = DataStream::from_bytes_ref_cell(data.clone());
+        let mut state = FilesystemState::new(DataStream::from_bytes_ref_cell(data.clone()));
 
         allocation_table
-            .update_entry_async(&mut stream, 2, AllocationTableEntry::Free)
+            .update_entry_async(&mut state, 2, AllocationTableEntry::Free)
             .await
             .unwrap();
 
@@ -857,10 +863,10 @@ mod update_entry_async {
         ]));
 
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat32, 0, 3);
-        let mut stream = DataStream::from_bytes_ref_cell(data.clone());
+        let mut state = FilesystemState::new(DataStream::from_bytes_ref_cell(data.clone()));
 
         allocation_table
-            .update_entry_async(&mut stream, 2, AllocationTableEntry::Free)
+            .update_entry_async(&mut state, 2, AllocationTableEntry::Free)
             .await
             .unwrap();
 
@@ -878,11 +884,11 @@ mod update_entry_async {
     #[tokio::test]
     async fn invalid_entry_returns_err() {
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat12, 0, 10);
-        let mut stream = VoidStream::new();
+        let mut state = FilesystemState::new(VoidStream::new());
 
         let error = allocation_table
             .update_entry_async(
-                &mut stream,
+                &mut state,
                 2,
                 AllocationTableEntry::NextClusterNumber(u32::MAX),
             )
@@ -907,14 +913,14 @@ mod update_entry_async {
 
         for kind in kinds {
             let mut allocation_table = AllocationTable::new(kind, 0, 10);
-            let mut stream = ErroringStream::new(
+            let mut state = FilesystemState::new(ErroringStream::new(
                 VoidStream::new(),
                 IoError::default(),
                 ErroringStreamScenarios::SEEK,
-            );
+            ));
 
             let error = allocation_table
-                .update_entry_async(&mut stream, 2, AllocationTableEntry::Free)
+                .update_entry_async(&mut state, 2, AllocationTableEntry::Free)
                 .await
                 .unwrap_err();
 
@@ -931,14 +937,14 @@ mod update_entry_async {
 
         for kind in kinds {
             let mut allocation_table = AllocationTable::new(kind, 0, 10);
-            let mut stream = ErroringStream::new(
+            let mut state = FilesystemState::new(ErroringStream::new(
                 VoidStream::new(),
                 IoError::default(),
                 ErroringStreamScenarios::WRITE,
-            );
+            ));
 
             let error = allocation_table
-                .update_entry_async(&mut stream, 2, AllocationTableEntry::Free)
+                .update_entry_async(&mut state, 2, AllocationTableEntry::Free)
                 .await
                 .unwrap_err();
 
@@ -952,14 +958,14 @@ mod update_entry_async {
     #[tokio::test]
     async fn read_error_propagates_err() {
         let mut allocation_table = AllocationTable::new(AllocationTableKind::Fat12, 0, 10);
-        let mut stream = ErroringStream::new(
+        let mut state = FilesystemState::new(ErroringStream::new(
             VoidStream::new(),
             IoError::default(),
             ErroringStreamScenarios::READ,
-        );
+        ));
 
         let error = allocation_table
-            .update_entry_async(&mut stream, 2, AllocationTableEntry::Free)
+            .update_entry_async(&mut state, 2, AllocationTableEntry::Free)
             .await
             .unwrap_err();
 

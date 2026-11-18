@@ -3,7 +3,7 @@ mod tests;
 
 use crate::queued_resource::QueuedResource;
 use crate::{
-    AsciiOnlyEncoder, CodePageEncoder, DirectoryItemIterationError, FileSystem, FileSystemError,
+    AsciiOnlyEncoder, CodePageEncoder, DirectoryItemIterationError, Filesystem, FilesystemError,
 };
 use core::cell::RefCell;
 use embedded_io::{ErrorType, SeekFrom};
@@ -14,9 +14,9 @@ use embedded_io::{Read, Seek};
 #[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek};
 
-/// Helper for creating [FileSystem] instances
+/// Helper for creating [Filesystem] instances
 #[derive(Clone, Debug)]
-pub struct FileSystemBuilder<S, const N: usize, CPE, IDE>
+pub struct FilesystemBuilder<S, const N: usize, CPE, IDE>
 where
     S: ErrorType,
     CPE: CodePageEncoder,
@@ -27,7 +27,7 @@ where
     on_invalid_directory_entry: IDE,
 }
 
-impl<S> FileSystemBuilder<S, 1, AsciiOnlyEncoder, fn(DirectoryItemIterationError<S::Error>)>
+impl<S> FilesystemBuilder<S, 1, AsciiOnlyEncoder, fn(DirectoryItemIterationError<S::Error>)>
 where
     S: ErrorType,
 {
@@ -41,14 +41,14 @@ where
     }
 }
 
-impl<S, const N: usize, CPE, IDE> FileSystemBuilder<S, N, CPE, IDE>
+impl<S, const N: usize, CPE, IDE> FilesystemBuilder<S, N, CPE, IDE>
 where
     S: ErrorType,
     CPE: CodePageEncoder,
     IDE: Fn(DirectoryItemIterationError<S::Error>),
 {
-    pub fn with_device_queue_length<const N2: usize>(self) -> FileSystemBuilder<S, N2, CPE, IDE> {
-        FileSystemBuilder {
+    pub fn with_access_queue_length<const N2: usize>(self) -> FilesystemBuilder<S, N2, CPE, IDE> {
+        FilesystemBuilder {
             stream: self.stream,
             code_page_encoder: self.code_page_encoder,
             on_invalid_directory_entry: self.on_invalid_directory_entry,
@@ -59,11 +59,11 @@ where
     pub fn with_code_page_encoder<CPE2>(
         self,
         code_page_encoder: CPE2,
-    ) -> FileSystemBuilder<S, N, CPE2, IDE>
+    ) -> FilesystemBuilder<S, N, CPE2, IDE>
     where
         CPE2: CodePageEncoder,
     {
-        FileSystemBuilder {
+        FilesystemBuilder {
             stream: self.stream,
             code_page_encoder,
             on_invalid_directory_entry: self.on_invalid_directory_entry,
@@ -75,11 +75,11 @@ where
     pub fn on_invalid_directory_entry<IDE2>(
         self,
         on_invalid_directory_entry: IDE2,
-    ) -> FileSystemBuilder<S, N, CPE, IDE2>
+    ) -> FilesystemBuilder<S, N, CPE, IDE2>
     where
         IDE2: Fn(DirectoryItemIterationError<S::Error>),
     {
-        FileSystemBuilder {
+        FilesystemBuilder {
             stream: self.stream,
             code_page_encoder: self.code_page_encoder,
             on_invalid_directory_entry,
@@ -88,15 +88,15 @@ where
 }
 
 #[cfg(feature = "sync")]
-impl<S, const N: usize, CPE, IDE> FileSystemBuilder<S, N, CPE, IDE>
+impl<S, const N: usize, CPE, IDE> FilesystemBuilder<S, N, CPE, IDE>
 where
     S: Read + Seek,
     CPE: CodePageEncoder,
     IDE: Fn(DirectoryItemIterationError<S::Error>),
 {
-    /// Creates the [FileSystem] instance based on the builder's current configuration.
-    pub fn build(self) -> Result<FileSystem<S, N, CPE, IDE>, FileSystemError<S::Error>> {
-        FileSystem::new(
+    /// Creates the [Filesystem] instance based on the builder's current configuration.
+    pub fn build(self) -> Result<Filesystem<S, N, CPE, IDE>, FilesystemError<S::Error>> {
+        Filesystem::new(
             self.stream,
             self.code_page_encoder,
             self.on_invalid_directory_entry,
@@ -105,17 +105,17 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<S, const N: usize, CPE, IDE> FileSystemBuilder<S, N, CPE, IDE>
+impl<S, const N: usize, CPE, IDE> FilesystemBuilder<S, N, CPE, IDE>
 where
     S: AsyncRead + AsyncSeek,
     CPE: CodePageEncoder,
     IDE: Fn(DirectoryItemIterationError<S::Error>),
 {
-    /// Creates the [FileSystem] instance based on the builder's current configuration.
+    /// Creates the [Filesystem] instance based on the builder's current configuration.
     pub async fn build_async(
         self,
-    ) -> Result<FileSystem<S, N, CPE, IDE>, FileSystemError<S::Error>> {
-        FileSystem::new_async(
+    ) -> Result<Filesystem<S, N, CPE, IDE>, FilesystemError<S::Error>> {
+        Filesystem::new_async(
             self.stream,
             self.code_page_encoder,
             self.on_invalid_directory_entry,

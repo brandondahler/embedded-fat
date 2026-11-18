@@ -12,7 +12,7 @@ mod display {
     #[test]
     fn produces_non_empty_value() {
         let values = [
-            FileError::DeviceBusy,
+            FileError::FilesystemBusy,
             FileError::SeekPositionBeyondLimits(0),
             FileError::SeekPositionImpossible(0),
             FileError::StreamEndReached,

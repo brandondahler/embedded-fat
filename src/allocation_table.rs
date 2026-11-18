@@ -24,6 +24,7 @@ use embedded_io::SeekFrom;
 #[cfg(feature = "sync")]
 use embedded_io::{Read, Seek, Write};
 
+use crate::filesystem_state::FilesystemState;
 #[cfg(feature = "async")]
 use embedded_io_async::{Read as AsyncRead, Seek as AsyncSeek, Write as AsyncWrite};
 
@@ -32,8 +33,6 @@ pub struct AllocationTable {
     kind: AllocationTableKind,
     base_address: u64,
     last_cluster_number: u32,
-
-    free_cluster_scan_start_number: u32,
 }
 
 impl AllocationTable {
@@ -48,14 +47,13 @@ impl AllocationTable {
             kind,
             base_address,
             last_cluster_number,
-            free_cluster_scan_start_number: 2,
         }
     }
 
     #[cfg(feature = "sync")]
     pub fn read_entry<S>(
         &self,
-        stream: &mut S,
+        state: &mut FilesystemState<S>,
         cluster_number: u32,
     ) -> Result<AllocationTableEntry, AllocationTableReadError<S::Error>>
     where
@@ -64,16 +62,16 @@ impl AllocationTable {
         let mut entry_value_bytes = [0u8; 4];
         let entry_offest = self.resolve_entry_offset(cluster_number);
 
-        stream.seek(SeekFrom::Start(
+        state.stream.seek(SeekFrom::Start(
             self.base_address + entry_offest.byte_offset,
         ))?;
 
         match self.kind {
             AllocationTableKind::Fat12 | AllocationTableKind::Fat16 => {
-                stream.read_exact(&mut entry_value_bytes[0..2])?;
+                state.stream.read_exact(&mut entry_value_bytes[0..2])?;
             }
             AllocationTableKind::Fat32 => {
-                stream.read_exact(&mut entry_value_bytes)?;
+                state.stream.read_exact(&mut entry_value_bytes)?;
             }
         }
 
@@ -88,7 +86,7 @@ impl AllocationTable {
     #[cfg(feature = "async")]
     pub async fn read_entry_async<S>(
         &self,
-        stream: &mut S,
+        state: &mut FilesystemState<S>,
         cluster_number: u32,
     ) -> Result<AllocationTableEntry, AllocationTableReadError<S::Error>>
     where
@@ -97,7 +95,8 @@ impl AllocationTable {
         let mut entry_value_bytes = [0u8; 4];
         let entry_offset = self.resolve_entry_offset(cluster_number);
 
-        stream
+        state
+            .stream
             .seek(SeekFrom::Start(
                 self.base_address + entry_offset.byte_offset,
             ))
@@ -105,10 +104,13 @@ impl AllocationTable {
 
         match self.kind {
             AllocationTableKind::Fat12 | AllocationTableKind::Fat16 => {
-                stream.read_exact(&mut entry_value_bytes[0..2]).await?;
+                state
+                    .stream
+                    .read_exact(&mut entry_value_bytes[0..2])
+                    .await?;
             }
             AllocationTableKind::Fat32 => {
-                stream.read_exact(&mut entry_value_bytes).await?;
+                state.stream.read_exact(&mut entry_value_bytes).await?;
             }
         }
 
@@ -123,48 +125,49 @@ impl AllocationTable {
     #[cfg(feature = "sync")]
     pub fn find_free_entry<S>(
         &mut self,
-        stream: &mut S,
+        state: &mut FilesystemState<S>,
     ) -> Result<Option<u32>, AllocationTableReadError<S::Error>>
     where
         S: Read + Seek,
     {
-        for cluster_number in self.free_cluster_scan_start_number..=self.last_cluster_number {
-            let entry = self.read_entry(stream, cluster_number)?;
+        for cluster_number in state.free_cluster_scan_start_number..=self.last_cluster_number {
+            let entry = self.read_entry(state, cluster_number)?;
 
             if matches!(entry, AllocationTableEntry::Free) {
-                self.free_cluster_scan_start_number = cluster_number;
+                state.free_cluster_scan_start_number = cluster_number;
                 return Ok(Some(cluster_number));
             }
         }
 
-        self.free_cluster_scan_start_number = self.last_cluster_number + 1;
+        state.free_cluster_scan_start_number = self.last_cluster_number + 1;
         Ok(None)
     }
 
     #[cfg(feature = "async")]
     pub async fn find_free_entry_async<S>(
         &mut self,
-        stream: &mut S,
+        state: &mut FilesystemState<S>,
     ) -> Result<Option<u32>, AllocationTableReadError<S::Error>>
     where
         S: AsyncRead + AsyncSeek,
     {
-        for cluster_number in self.free_cluster_scan_start_number..=self.last_cluster_number {
-            let entry = self.read_entry_async(stream, cluster_number).await?;
+        for cluster_number in state.free_cluster_scan_start_number..=self.last_cluster_number {
+            let entry = self.read_entry_async(state, cluster_number).await?;
 
             if matches!(entry, AllocationTableEntry::Free) {
-                self.free_cluster_scan_start_number = cluster_number;
+                state.free_cluster_scan_start_number = cluster_number;
                 return Ok(Some(cluster_number));
             }
         }
 
+        state.free_cluster_scan_start_number = self.last_cluster_number + 1;
         Ok(None)
     }
 
     #[cfg(feature = "sync")]
     pub fn update_entry<S>(
         &mut self,
-        stream: &mut S,
+        state: &mut FilesystemState<S>,
         cluster_number: u32,
         allocation_table_entry: AllocationTableEntry,
     ) -> Result<(), AllocationTableUpdateError<S::Error>>
@@ -177,26 +180,32 @@ impl AllocationTable {
         let mut bytes = [0; 4];
 
         if matches!(self.kind, AllocationTableKind::Fat12) {
-            stream.seek(SeekFrom::Start(entry_offset.byte_offset))?;
-            stream.read_exact(&mut bytes[0..2])?;
+            state
+                .stream
+                .seek(SeekFrom::Start(entry_offset.byte_offset))?;
+            state.stream.read_exact(&mut bytes[0..2])?;
         };
 
         physical_entry.write(&mut bytes, entry_offset.is_nibble_offset);
 
         match self.kind {
             AllocationTableKind::Fat12 | AllocationTableKind::Fat16 => {
-                stream.seek(SeekFrom::Start(entry_offset.byte_offset))?;
-                stream.write_all(&bytes[0..2])?;
+                state
+                    .stream
+                    .seek(SeekFrom::Start(entry_offset.byte_offset))?;
+                state.stream.write_all(&bytes[0..2])?;
             }
             AllocationTableKind::Fat32 => {
-                stream.seek(SeekFrom::Start(entry_offset.byte_offset))?;
-                stream.write_all(&bytes)?;
+                state
+                    .stream
+                    .seek(SeekFrom::Start(entry_offset.byte_offset))?;
+                state.stream.write_all(&bytes)?;
             }
         };
 
         if (matches!(allocation_table_entry, AllocationTableEntry::Free)) {
-            self.free_cluster_scan_start_number =
-                min(self.free_cluster_scan_start_number, cluster_number);
+            state.free_cluster_scan_start_number =
+                min(state.free_cluster_scan_start_number, cluster_number);
         }
 
         Ok(())
@@ -205,7 +214,7 @@ impl AllocationTable {
     #[cfg(feature = "async")]
     pub async fn update_entry_async<S>(
         &mut self,
-        stream: &mut S,
+        state: &mut FilesystemState<S>,
         cluster_number: u32,
         allocation_table_entry: AllocationTableEntry,
     ) -> Result<(), AllocationTableUpdateError<S::Error>>
@@ -218,32 +227,35 @@ impl AllocationTable {
         let mut bytes = [0; 4];
 
         if matches!(self.kind, AllocationTableKind::Fat12) {
-            stream
+            state
+                .stream
                 .seek(SeekFrom::Start(entry_offset.byte_offset))
                 .await?;
-            stream.read_exact(&mut bytes[0..2]).await?;
+            state.stream.read_exact(&mut bytes[0..2]).await?;
         };
 
         physical_entry.write(&mut bytes, entry_offset.is_nibble_offset);
 
         match self.kind {
             AllocationTableKind::Fat12 | AllocationTableKind::Fat16 => {
-                stream
+                state
+                    .stream
                     .seek(SeekFrom::Start(entry_offset.byte_offset))
                     .await?;
-                stream.write_all(&bytes[0..2]).await?;
+                state.stream.write_all(&bytes[0..2]).await?;
             }
             AllocationTableKind::Fat32 => {
-                stream
+                state
+                    .stream
                     .seek(SeekFrom::Start(entry_offset.byte_offset))
                     .await?;
-                stream.write_all(&bytes).await?;
+                state.stream.write_all(&bytes).await?;
             }
         };
 
         if matches!(allocation_table_entry, AllocationTableEntry::Free) {
-            self.free_cluster_scan_start_number =
-                min(self.free_cluster_scan_start_number, cluster_number);
+            state.free_cluster_scan_start_number =
+                min(state.free_cluster_scan_start_number, cluster_number);
         }
 
         Ok(())
